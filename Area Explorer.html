@@ -1,0 +1,3011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iNaturalist Taxa Explorer</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Karla:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --forest-dark: #1a3a2e;
+            --forest-mid: #2d5f4c;
+            --forest-light: #3d7c5f;
+            --sage: #7ba591;
+            --cream: #faf7f2;
+            --earth: #c9a88a;
+            --rust: #b85c38;
+            --gold: #e6b17e;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Karla', sans-serif;
+            background: linear-gradient(135deg, var(--cream) 0%, #e8e3d9 100%);
+            color: var(--forest-dark);
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 380px 1fr 350px;
+            grid-template-rows: 1fr 180px;
+            height: 100vh;
+            gap: 0;
+        }
+        
+        /* Left Sidebar - Controls */
+        .sidebar-left {
+            grid-row: 1 / 3;
+            grid-column: 1 / 2;
+            background: var(--forest-dark);
+            color: var(--cream);
+            padding: 30px 25px;
+            overflow-y: auto;
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+            position: relative;
+        }
+        
+        .sidebar-left::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 1px;
+            height: 100%;
+            background: linear-gradient(to bottom, 
+                transparent, 
+                var(--sage) 20%, 
+                var(--sage) 80%, 
+                transparent);
+            opacity: 0.3;
+        }
+        
+        /* Right Sidebar - Stats and Controls */
+        .sidebar-right {
+            grid-row: 1 / 3;
+            grid-column: 3 / 4;
+            background: var(--forest-dark);
+            color: var(--cream);
+            padding: 30px 25px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+            border-left: 1px solid rgba(123, 165, 145, 0.2);
+        }
+        
+        /* Bottom Legend Panel */
+        .bottom-legend-panel {
+            grid-row: 2 / 3;
+            grid-column: 2 / 3;
+            background: var(--forest-dark);
+            color: var(--cream);
+            padding: 12px 25px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+            border-top: 1px solid rgba(123, 165, 145, 0.2);
+        }
+        
+        .bottom-legend-panel .legend-title {
+            font-size: 0.95em;
+            margin-bottom: 10px;
+        }
+        
+        .sidebar-right h1 {
+            font-size: 2em;
+            margin-bottom: 8px;
+        }
+        
+        .sidebar-right .subtitle {
+            font-size: 0.9em;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 2em;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--gold);
+            letter-spacing: -0.5px;
+            line-height: 1.1;
+        }
+        
+        .subtitle {
+            font-size: 0.9em;
+            color: var(--sage);
+            margin-bottom: 30px;
+            font-weight: 300;
+            letter-spacing: 0.3px;
+        }
+        
+        .section {
+            margin-bottom: 28px;
+        }
+        
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.05em;
+            color: var(--earth);
+            margin-bottom: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        .input-group {
+            margin-bottom: 16px;
+        }
+        
+        label {
+            display: block;
+            font-size: 0.8em;
+            color: var(--sage);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(250, 247, 242, 0.08);
+            border: 1px solid rgba(123, 165, 145, 0.3);
+            border-radius: 6px;
+            color: var(--cream);
+            font-family: 'Karla', sans-serif;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+        
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            background: rgba(250, 247, 242, 0.12);
+            border-color: var(--sage);
+            box-shadow: 0 0 0 3px rgba(123, 165, 145, 0.1);
+        }
+        
+        select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237ba591' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 40px;
+        }
+        
+        select option {
+            background: var(--forest-dark);
+            color: var(--cream);
+        }
+        
+        .month-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+        }
+        
+        .month-checkbox {
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
+            background: rgba(45, 95, 76, 0.2);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        
+        .month-checkbox:hover {
+            background: rgba(45, 95, 76, 0.3);
+        }
+        
+        .month-checkbox input[type="checkbox"] {
+            width: auto;
+            margin-right: 6px;
+            cursor: pointer;
+            accent-color: var(--rust);
+        }
+        
+        input::placeholder {
+            color: rgba(123, 165, 145, 0.5);
+        }
+        
+        .hint {
+            font-size: 0.75em;
+            color: var(--sage);
+            margin-top: 6px;
+            font-style: italic;
+            opacity: 0.8;
+        }
+        
+        .drawing-controls {
+            background: rgba(45, 95, 76, 0.3);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(123, 165, 145, 0.2);
+        }
+        
+        button {
+            width: 100%;
+            padding: 14px 16px;
+            border: none;
+            border-radius: 6px;
+            font-family: 'Karla', sans-serif;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-primary {
+            background: var(--rust);
+            color: var(--cream);
+            margin-top: 20px;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: #a04d2f;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(184, 92, 56, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            background: rgba(184, 92, 56, 0.3);
+            cursor: not-allowed;
+        }
+        
+        .preview-count {
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(123, 165, 145, 0.15);
+            border-radius: 6px;
+            border: 1px solid rgba(123, 165, 145, 0.3);
+            text-align: center;
+        }
+        
+        .preview-label {
+            font-size: 0.75em;
+            color: var(--sage);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .preview-value {
+            font-size: 1.2em;
+            color: var(--gold);
+            font-weight: 600;
+        }
+        
+        .preview-value.loading {
+            color: var(--sage);
+            opacity: 0.6;
+        }
+        
+        .btn-secondary {
+            background: rgba(123, 165, 145, 0.2);
+            color: var(--sage);
+            border: 1px solid var(--sage);
+            padding: 8px 12px;
+            font-size: 0.85em;
+            margin-top: 10px;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(123, 165, 145, 0.3);
+        }
+
+        .btn-download {
+            background: rgba(230, 177, 126, 0.2);
+            color: var(--gold);
+            border: 1px solid var(--gold);
+            padding: 10px 14px;
+            font-size: 0.85em;
+            margin-top: 15px;
+        }
+        
+        .btn-download:hover {
+            background: rgba(230, 177, 126, 0.3);
+        }
+        
+        .download-container {
+            position: relative;
+        }
+        
+        .download-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--forest-mid);
+            border: 1px solid var(--sage);
+            border-radius: 6px;
+            margin-top: 4px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .download-menu-item {
+            width: 100%;
+            padding: 10px 14px;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid rgba(123, 165, 145, 0.2);
+            color: var(--cream);
+            font-size: 0.85em;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+        
+        .download-menu-item:last-child {
+            border-bottom: none;
+        }
+        
+        .download-menu-item:hover {
+            background: rgba(123, 165, 145, 0.2);
+        }
+        
+        .legend-controls-container {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(123, 165, 145, 0.2);
+        }
+        
+        .file-drop-zone {
+            border: 2px dashed var(--sage);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: rgba(45, 95, 76, 0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .file-drop-zone:hover,
+        .file-drop-zone.dragover {
+            background: rgba(45, 95, 76, 0.2);
+            border-color: var(--gold);
+        }
+        
+        .file-drop-zone p {
+            margin: 5px 0;
+            font-size: 0.85em;
+            color: var(--sage);
+        }
+        
+        .file-drop-zone .drop-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+            opacity: 0.5;
+        }
+        
+        .file-input-hidden {
+            display: none;
+        }
+        
+        .month-filter-container {
+            margin-top: 15px;
+            margin-bottom: 15px;
+            padding: 12px;
+            background: rgba(45, 95, 76, 0.15);
+            border-radius: 6px;
+            border: 1px solid rgba(123, 165, 145, 0.2);
+        }
+        
+        .month-filter-container .sort-label {
+            margin-bottom: 8px;
+        }
+        
+        .month-filter-container .month-grid {
+            margin-top: 8px;
+        }
+        
+        .pin-scale-container {
+            margin-bottom: 15px;
+        }
+        
+        .pin-scale-container .sort-label {
+            margin-bottom: 6px;
+        }
+        
+        .status {
+            background: rgba(230, 177, 126, 0.1);
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 20px;
+            font-size: 0.85em;
+            border-left: 3px solid var(--gold);
+            display: none;
+        }
+        
+        .status.active {
+            display: block;
+        }
+        
+        .status.error {
+            background: rgba(184, 92, 56, 0.1);
+            border-left-color: var(--rust);
+        }
+        
+        .status.success {
+            background: rgba(123, 165, 145, 0.1);
+            border-left-color: var(--sage);
+        }
+        
+        .progress-container {
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .progress-container.active {
+            display: block;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(45, 95, 76, 0.3);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--sage);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            font-size: 0.8em;
+            color: var(--sage);
+            margin-top: 6px;
+            text-align: center;
+        }
+        
+        /* Map Container */
+        .map-container {
+            grid-row: 1 / 2;
+            grid-column: 2 / 3;
+            position: relative;
+            height: 100%;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Legend Styles */
+        .legend-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1em;
+            color: var(--earth);
+            margin-bottom: 12px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        
+        .pin-size-control {
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
+        
+        .pin-size-control .sort-label {
+            margin-bottom: 6px;
+        }
+        
+        .pin-size-control .sort-control {
+            margin-bottom: 0;
+        }
+        
+        .legend-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        
+        .legend-control-btn {
+            flex: 1;
+            padding: 6px 12px;
+            background: rgba(45, 95, 76, 0.3);
+            border: 1px solid rgba(123, 165, 145, 0.3);
+            border-radius: 4px;
+            color: var(--sage);
+            font-size: 0.75em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .legend-control-btn:hover {
+            background: rgba(45, 95, 76, 0.5);
+            border-color: var(--sage);
+        }
+        
+        .legend-table-header {
+            display: grid;
+            grid-template-columns: 16px 16px 1fr 42px 48px 52px 28px;
+            gap: 4px;
+            padding: 4px 6px;
+            background: rgba(45, 95, 76, 0.3);
+            border-radius: 4px;
+            margin-bottom: 6px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .header-cell {
+            font-size: 0.65em;
+            color: var(--sage);
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .header-cell:hover {
+            color: var(--gold);
+        }
+        
+        .header-checkbox,
+        .header-color {
+            cursor: default;
+        }
+        
+        .header-checkbox:hover,
+        .header-color:hover {
+            color: var(--sage);
+        }
+        
+        .sort-arrow {
+            font-size: 0.8em;
+            opacity: 0.5;
+            transition: opacity 0.2s ease;
+        }
+        
+        .sort-arrow.active {
+            opacity: 1;
+            color: var(--gold);
+        }
+        
+        .header-local,
+        .header-global,
+        .header-endemism,
+        .header-obscured {
+            justify-content: flex-end;
+        }
+        
+        .sort-label {
+            font-size: 0.75em;
+            color: var(--sage);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        
+        .sort-control {
+            width: 100%;
+            padding: 8px;
+            background: rgba(45, 95, 76, 0.3);
+            border: 1px solid rgba(123, 165, 145, 0.3);
+            border-radius: 6px;
+            color: var(--cream);
+            font-family: 'Karla', sans-serif;
+            font-size: 0.85em;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }
+        
+        .stats {
+            background: rgba(230, 177, 126, 0.08);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 3px solid var(--gold);
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+        
+        .stat-label {
+            color: var(--sage);
+        }
+        
+        .stat-value {
+            color: var(--gold);
+            font-weight: 600;
+        }
+        
+        .legend-items {
+            max-height: 100px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        .legend-item {
+            display: grid;
+            grid-template-columns: 16px 16px 1fr 42px 48px 52px 28px;
+            gap: 4px;
+            padding: 3px 6px;
+            margin-bottom: 1px;
+            border-radius: 3px;
+            transition: background 0.2s ease;
+            align-items: center;
+        }
+        
+        .legend-item:hover {
+            background: rgba(123, 165, 145, 0.1);
+        }
+        
+        .legend-checkbox {
+            margin: 0;
+            cursor: pointer;
+            accent-color: var(--rust);
+            width: 12px;
+            height: 12px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1.5px solid rgba(250, 247, 242, 0.3);
+            flex-shrink: 0;
+        }
+        
+        .legend-text {
+            font-size: 0.72em;
+            line-height: 1.15;
+            cursor: pointer;
+            min-width: 0;
+            overflow: hidden;
+        }
+        
+        .legend-scientific {
+            font-style: italic;
+            color: var(--cream);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .legend-common {
+            color: var(--sage);
+            font-size: 0.88em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .legend-count {
+            color: var(--gold);
+            font-size: 0.72em;
+            font-weight: 600;
+            text-align: right;
+        }
+        
+        .legend-global-count {
+            color: var(--sage);
+            font-size: 0.68em;
+            font-weight: 400;
+            text-align: right;
+        }
+        
+        .legend-endemism-score {
+            color: var(--rust);
+            font-size: 0.72em;
+            font-weight: 600;
+            text-align: right;
+        }
+        
+        .legend-obscured-indicator {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .obscured-indicator {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--rust);
+            flex-shrink: 0;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--sage);
+        }
+        
+        .empty-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+        
+        /* Scrollbar styling */
+        .sidebar-left::-webkit-scrollbar,
+        .sidebar-right::-webkit-scrollbar,
+        .legend-items::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar-left::-webkit-scrollbar-track,
+        .sidebar-right::-webkit-scrollbar-track,
+        .legend-items::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .sidebar-left::-webkit-scrollbar-thumb,
+        .sidebar-right::-webkit-scrollbar-thumb,
+        .legend-items::-webkit-scrollbar-thumb {
+            background: var(--sage);
+            border-radius: 3px;
+        }
+        
+        /* Popup styling */
+        .leaflet-popup-content-wrapper {
+            background: var(--forest-dark);
+            color: var(--cream);
+            border-radius: 8px;
+            padding: 0;
+        }
+        
+        .leaflet-popup-content {
+            margin: 15px;
+            font-family: 'Karla', sans-serif;
+        }
+        
+        .popup-title {
+            font-style: italic;
+            font-size: 1.1em;
+            color: var(--gold);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        .popup-common {
+            color: var(--sage);
+            margin-bottom: 10px;
+            font-size: 0.95em;
+        }
+        
+        .popup-detail {
+            font-size: 0.85em;
+            color: var(--cream);
+            margin-bottom: 4px;
+            opacity: 0.9;
+        }
+
+        .popup-detail a {
+            color: var(--gold);
+            text-decoration: none;
+            border-bottom: 1px solid var(--gold);
+        }
+
+        .popup-detail a:hover {
+            color: var(--earth);
+            border-bottom-color: var(--earth);
+        }
+        
+        .leaflet-popup-tip {
+            background: var(--forest-dark);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Sidebar - Controls -->
+        <div class="sidebar-left">
+            <h1>Taxa Explorer</h1>
+            <p class="subtitle">Define region and discover species</p>
+            
+            <div class="section">
+                <div class="section-title">1. Define Region</div>
+                <div class="drawing-controls">
+                    <p style="font-size: 0.85em; margin-bottom: 10px;">
+                        Use the polygon tool (□) on the map OR enter a Place ID in the filters below.
+                    </p>
+                    <button class="btn-secondary" onclick="clearPolygon()">Clear Polygon</button>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">2. Filters (Optional)</div>
+                
+                <div class="input-group">
+                    <label for="taxonInput">Taxon ID or Name</label>
+                    <input 
+                        type="text" 
+                        id="taxonInput" 
+                        placeholder="e.g., 47126 or 'birds'"
+                        oninput="debouncedPreviewUpdate()"
+                    >
+                    <p class="hint">Filter by taxonomic group</p>
+                </div>
+                
+                <div class="input-group">
+                    <label for="placeIdInput">iNaturalist Place ID</label>
+                    <input 
+                        type="text" 
+                        id="placeIdInput" 
+                        placeholder="e.g., 6803 for San Diego County"
+                        oninput="debouncedPreviewUpdate()"
+                    >
+                    <p class="hint">Optional: Filter to a specific place boundary (overrides polygon)</p>
+                </div>
+                
+                <div class="input-group">
+                    <label for="highestRankFilter">Highest (Broadest) Rank</label>
+                    <select id="highestRankFilter" onchange="debouncedPreviewUpdate()">
+                        <option value="">No limit</option>
+                        <option value="kingdom">Kingdom</option>
+                        <option value="phylum">Phylum</option>
+                        <option value="class">Class</option>
+                        <option value="order">Order</option>
+                        <option value="family">Family</option>
+                        <option value="genus">Genus</option>
+                        <option value="species" selected>Species</option>
+                        <option value="subspecies">Subspecies</option>
+                        <option value="variety">Variety</option>
+                    </select>
+                    <p class="hint">Don't retrieve observations broader than this rank</p>
+                </div>
+                
+                <div class="input-group">
+                    <label for="lowestRankFilter">Lowest (Most Specific) Rank</label>
+                    <select id="lowestRankFilter">
+                        <option value="">No limit</option>
+                        <option value="family">Family</option>
+                        <option value="genus">Genus</option>
+                        <option value="species" selected>Species</option>
+                        <option value="subspecies">Subspecies</option>
+                        <option value="variety">Variety</option>
+                        <option value="form">Form</option>
+                    </select>
+                    <p class="hint">Aggregate to this rank for comparison (e.g., species-level)</p>
+                </div>
+                
+                <div class="input-group">
+                    <label for="userInput">iNaturalist Username</label>
+                    <input 
+                        type="text" 
+                        id="userInput" 
+                        placeholder="e.g., johndoe"
+                    >
+                    <p class="hint">Compare against user's complete global life list</p>
+                </div>
+                
+                <div class="input-group">
+                    <label>Year Range</label>
+                    <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center;">
+                        <input 
+                            type="number" 
+                            id="yearStart" 
+                            placeholder="Start year"
+                            min="1800"
+                            max="2100"
+                            oninput="debouncedPreviewUpdate()"
+                        >
+                        <span style="color: var(--sage); font-size: 0.9em;">to</span>
+                        <input 
+                            type="number" 
+                            id="yearEnd" 
+                            placeholder="End year"
+                            min="1800"
+                            max="2100"
+                            oninput="debouncedPreviewUpdate()"
+                        >
+                    </div>
+                    <p class="hint">Filter observations by year observed (leave blank for all years)</p>
+                </div>
+                
+                <div class="input-group">
+                    <label>Observation Months</label>
+                    <div class="month-grid" id="monthGrid">
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="1" checked onchange="debouncedPreviewUpdate()"> Jan
+                        </label>
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="2" checked onchange="debouncedPreviewUpdate()"> Feb
+                        </label>
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="3" checked onchange="debouncedPreviewUpdate()"> Mar
+                        </label>
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="4" checked onchange="debouncedPreviewUpdate()"> Apr
+                        </label>
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="5" checked onchange="debouncedPreviewUpdate()"> May
+                        </label>
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="6" checked onchange="debouncedPreviewUpdate()"> Jun
+                        </label>
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="7" checked onchange="debouncedPreviewUpdate()"> Jul
+                        </label>
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="8" checked onchange="debouncedPreviewUpdate()"> Aug
+                        </label>
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="9" checked onchange="debouncedPreviewUpdate()"> Sep
+                        </label>
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="10" checked onchange="debouncedPreviewUpdate()"> Oct
+                        </label>
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="11" checked onchange="debouncedPreviewUpdate()"> Nov
+                        </label>
+                        <label class="month-checkbox">
+                            <input type="checkbox" value="12" checked onchange="debouncedPreviewUpdate()"> Dec
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <label for="maxResults">Max Results Per Query</label>
+                    <input 
+                        type="number" 
+                        id="maxResults" 
+                        value="250000"
+                        min="1"
+                        max="250000"
+                    >
+                    <p class="hint">Automatically batched if exceeds 10k limit</p>
+                </div>
+            </div>
+            
+            <button class="btn-primary" onclick="runQuery()" id="runBtn">
+                🔍 Run Query
+            </button>
+            
+            <div class="preview-count" id="previewCount" style="display: none;">
+                <div class="preview-label">Estimated observations:</div>
+                <div class="preview-value" id="previewValue">—</div>
+            </div>
+            
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">Initializing...</div>
+            </div>
+            
+            <div class="status" id="statusBox">
+                <span id="statusText"></span>
+            </div>
+        </div>
+        
+        <!-- Map -->
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+        
+        <!-- Right Sidebar - Legend -->
+        <div class="sidebar-right">
+            <h1>Results</h1>
+            <p class="subtitle">Interactive species map</p>
+            
+            <div id="fileDropContainer" style="display: none;">
+                <div class="file-drop-zone" id="fileDropZone" onclick="document.getElementById('fileInput').click()">
+                    <div class="drop-icon">📁</div>
+                    <p><strong>Load Previous Results</strong></p>
+                    <p>Click or drag GeoJSON file here</p>
+                </div>
+                <input type="file" id="fileInput" class="file-input-hidden" accept=".geojson,.json" onchange="handleFileSelect(event)">
+            </div>
+            
+            <div id="statsContainer" style="display: none;">
+                <div class="stats">
+                    <div class="stat-row">
+                        <span class="stat-label">Total Observations:</span>
+                        <span class="stat-value" id="totalObs">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Unique Taxa:</span>
+                        <span class="stat-value" id="uniqueTaxa">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Obscured:</span>
+                        <span class="stat-value" id="obscuredCount">0</span>
+                    </div>
+                </div>
+                
+                <div class="month-filter-container">
+                    <label class="sort-label">Filter by Month</label>
+                    <div class="month-grid" id="resultsMonthGrid">
+                        <!-- Will be populated dynamically -->
+                    </div>
+                </div>
+                
+                <div class="download-container">
+                    <button class="btn-download" onclick="toggleDownloadMenu(event)" id="downloadBtn">
+                        📊 Download Results ▼
+                    </button>
+                    <div id="downloadMenu" class="download-menu" style="display: none;">
+                        <button class="download-menu-item" onclick="downloadTaxaSummary()">
+                            📋 Taxa Summary (Excel)
+                        </button>
+                        <button class="download-menu-item" onclick="downloadRawData()">
+                            📊 Raw Observations (Excel)
+                        </button>
+                        <button class="download-menu-item" onclick="downloadGeoJSON()">
+                            🗺️ GeoJSON (for reload)
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="legend-controls-container">
+                    <div class="input-group">
+                        <label class="sort-label">Pin Size</label>
+                        <select id="pinSizeSelect" class="sort-control" onchange="changePinSizeMode()">
+                            <option value="none">None (3px)</option>
+                            <option value="rarity" selected>Rarity (global)</option>
+                            <option value="endemism">Endemism (local/global)</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn-secondary" onclick="toggleAllTaxaButton()" id="toggleAllBtn" style="width: 100%; margin-top: 10px;">
+                        ✓ Toggle All Taxa
+                    </button>
+                </div>
+            </div>
+            
+            <div id="emptyState" class="empty-state">
+                <div class="empty-icon">🗺️</div>
+                <p>Draw a polygon and run a query to discover species in your area of interest</p>
+            </div>
+        </div>
+        
+        <!-- Bottom Legend Panel -->
+        <div class="bottom-legend-panel">
+            <div id="legendContainer" style="display: none;">
+                <div class="legend">
+                    <div class="legend-title">Taxa Legend</div>
+                    
+                    <div class="legend-table-header">
+                        <div class="header-cell header-checkbox"></div>
+                        <div class="header-cell header-color"></div>
+                        <div class="header-cell header-species" onclick="cycleSortColumn('species')">
+                            <span>Species</span>
+                            <span class="sort-arrow" id="sortArrow-species">↕</span>
+                        </div>
+                        <div class="header-cell header-local" onclick="cycleSortColumn('local')">
+                            <span>Local</span>
+                            <span class="sort-arrow" id="sortArrow-local">↕</span>
+                        </div>
+                        <div class="header-cell header-global" onclick="cycleSortColumn('global')">
+                            <span>Global</span>
+                            <span class="sort-arrow" id="sortArrow-global">↕</span>
+                        </div>
+                        <div class="header-cell header-endemism" onclick="cycleSortColumn('endemism')">
+                            <span>Endem.</span>
+                            <span class="sort-arrow" id="sortArrow-endemism">↕</span>
+                        </div>
+                        <div class="header-cell header-obscured" onclick="cycleSortColumn('obscured')">
+                            <span>Obs.</span>
+                            <span class="sort-arrow" id="sortArrow-obscured">↕</span>
+                        </div>
+                    </div>
+                    
+                    <div class="legend-items" id="legendItems"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <script>
+        // ===================================================================
+        // CONSTANTS AND GLOBALS
+        // ===================================================================
+        
+        const RANK_HIERARCHY = [
+            'stateofmatter', 'kingdom', 'phylum', 'subphylum', 'superclass', 'class',
+            'subclass', 'infraclass', 'superorder', 'order', 'suborder', 'infraorder',
+            'parvorder', 'zoosection', 'zoosubsection', 'superfamily', 'epifamily',
+            'family', 'subfamily', 'supertribe', 'tribe', 'subtribe', 'genus',
+            'subgenus', 'section', 'subsection', 'complex', 'species', 'hybrid',
+            'subspecies', 'variety', 'form', 'infrahybrid'
+        ];
+        
+        const COLOR_PALETTE = [
+            '#e63946', '#f77f00', '#fcbf49', '#06d6a0', '#118ab2',
+            '#073b4c', '#ef476f', '#ffd166', '#06ffa5', '#118ab2',
+            '#7209b7', '#f72585', '#4cc9f0', '#4361ee', '#3a0ca3',
+            '#b5179e', '#560bad', '#480ca8', '#3f37c9', '#4895ef'
+        ];
+        
+        const API_LIMIT = 10000; // iNaturalist max per query
+        
+        let map;
+        let drawnItems;
+        let currentPolygon = null;
+        let currentLayer = null;
+        let taxaData = {};
+        let colorMap = {};
+        let taxaVisibility = {};
+        let allProcessedFeatures = [];
+        let currentResultData = null;
+        let taxaGlobalCounts = {};
+        let queriedMonths = []; // Months that were used in the original query
+        let activeMonthFilter = []; // Currently active month filter for display
+        let currentSortColumn = 'local'; // 'species', 'local', 'global', 'obscured'
+        let currentSortDirection = 'desc'; // 'asc' or 'desc'
+        let previewDebounceTimer = null;
+        let satelliteLayer = null;
+        let streetLayer = null;
+        let pinSizeMode = 'rarity'; // 'none', 'rarity', 'endemism'
+        let queryPolygon = null; // Store the polygon used for the current query
+        let currentPinScale = 'rarity'; // 'none', 'rarity', 'endemism'
+        
+        // ===================================================================
+        // MAP INITIALIZATION
+        // ===================================================================
+        
+        // Initialize map
+        map = L.map('map').setView([20, 0], 2);
+        
+        // Street map layer (default)
+        streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 18,
+        }).addTo(map);
+        
+        // Satellite layer (ESRI World Imagery)
+        satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+            maxZoom: 18
+        });
+        
+        // Add layer control
+        const baseMaps = {
+            "Street Map": streetLayer,
+            "Satellite": satelliteLayer
+        };
+        L.control.layers(baseMaps).addTo(map);
+        
+        // Feature group for drawn items
+        drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        
+        // Drawing controls
+        const drawControl = new L.Control.Draw({
+            draw: {
+                polygon: {
+                    allowIntersection: false,
+                    showArea: true,
+                    drawError: {
+                        color: '#b85c38',
+                        message: '<strong>Error:</strong> Shape edges cannot cross!'
+                    },
+                    shapeOptions: {
+                        color: '#b85c38',
+                        weight: 3,
+                        fillOpacity: 0.2,
+                        fillColor: '#e6b17e'
+                    }
+                },
+                polyline: false,
+                rectangle: {
+                    shapeOptions: {
+                        color: '#2d5f4c',
+                        weight: 3,
+                        fillOpacity: 0.2
+                    }
+                },
+                circle: false,
+                circlemarker: false,
+                marker: false
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: true
+            }
+        });
+        map.addControl(drawControl);
+        
+        // Handle polygon creation
+        map.on('draw:created', function (e) {
+            const layer = e.layer;
+            drawnItems.clearLayers();
+            drawnItems.addLayer(layer);
+            currentPolygon = layer.toGeoJSON();
+            showStatus('Polygon defined - ready to run query', 'success');
+            updatePreviewCount(); // Update preview when polygon is completed
+        });
+        
+        // Handle polygon edit
+        map.on('draw:edited', function (e) {
+            const layers = e.layers;
+            layers.eachLayer(function (layer) {
+                currentPolygon = layer.toGeoJSON();
+            });
+            showStatus('Polygon updated', 'success');
+            updatePreviewCount(); // Update preview when polygon is edited
+        });
+        
+        // Handle polygon deletion
+        map.on('draw:deleted', function (e) {
+            currentPolygon = null;
+            showStatus('Polygon cleared', 'info');
+            document.getElementById('previewCount').style.display = 'none';
+        });
+        
+        // ===================================================================
+        // PREVIEW COUNT FUNCTIONS
+        // ===================================================================
+        
+        async function updatePreviewCount() {
+            if (!currentPolygon) {
+                document.getElementById('previewCount').style.display = 'none';
+                return;
+            }
+            
+            // Get current filter values
+            const taxon = document.getElementById('taxonInput').value.trim() || null;
+            const highestRank = document.getElementById('highestRankFilter').value || null;
+            
+            const monthCheckboxes = document.querySelectorAll('#monthGrid input[type="checkbox"]:checked');
+            const selectedMonths = Array.from(monthCheckboxes).map(cb => parseInt(cb.value));
+            
+            if (selectedMonths.length === 0) {
+                document.getElementById('previewCount').style.display = 'none';
+                return;
+            }
+            
+            // Calculate bounding box
+            const coords = currentPolygon.geometry.coordinates[0];
+            const lats = coords.map(c => c[1]);
+            const lngs = coords.map(c => c[0]);
+            
+            const bbox = {
+                swlat: Math.min(...lats),
+                swlng: Math.min(...lngs),
+                nelat: Math.max(...lats),
+                nelng: Math.max(...lngs)
+            };
+            
+            // Build params
+            const params = {
+                swlat: bbox.swlat,
+                swlng: bbox.swlng,
+                nelat: bbox.nelat,
+                nelng: bbox.nelng,
+                quality_grade: 'research,needs_id'
+            };
+            
+            if (taxon) {
+                if (/^\d+$/.test(taxon)) {
+                    params.taxon_id = taxon;
+                } else {
+                    params.taxon_name = taxon;
+                }
+            }
+            
+            if (highestRank) {
+                params.hrank = highestRank;
+            }
+            
+            if (selectedMonths.length > 0) {
+                params.month = selectedMonths.join(',');
+            }
+            
+            // Show loading state
+            const previewBox = document.getElementById('previewCount');
+            const previewValue = document.getElementById('previewValue');
+            previewBox.style.display = 'block';
+            previewValue.textContent = 'Loading...';
+            previewValue.classList.add('loading');
+            
+            // Fetch count
+            try {
+                const count = await getTotalCount(params);
+                previewValue.textContent = count.toLocaleString();
+                previewValue.classList.remove('loading');
+            } catch (error) {
+                console.error('Error fetching preview count:', error);
+                previewValue.textContent = 'Error';
+                previewValue.classList.remove('loading');
+            }
+        }
+        
+        function debouncedPreviewUpdate() {
+            // Clear existing timer
+            if (previewDebounceTimer) {
+                clearTimeout(previewDebounceTimer);
+            }
+            
+            // Set new timer
+            previewDebounceTimer = setTimeout(() => {
+                updatePreviewCount();
+            }, 500); // Wait 500ms after user stops interacting
+        }
+        
+        // ===================================================================
+        // UTILITY FUNCTIONS
+        // ===================================================================
+        
+        function showStatus(message, type = 'info') {
+            const statusBox = document.getElementById('statusBox');
+            const statusText = document.getElementById('statusText');
+            
+            statusText.textContent = message;
+            statusBox.className = 'status active';
+            if (type) {
+                statusBox.classList.add(type);
+            }
+            
+            if (type !== 'error') {
+                setTimeout(() => {
+                    statusBox.classList.remove('active');
+                }, 5000);
+            }
+        }
+        
+        function updateProgress(percent, text) {
+            const container = document.getElementById('progressContainer');
+            const fill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            
+            if (percent === 0) {
+                container.classList.remove('active');
+            } else {
+                container.classList.add('active');
+                fill.style.width = percent + '%';
+                progressText.textContent = text;
+            }
+        }
+        
+        function clearPolygon() {
+            drawnItems.clearLayers();
+            currentPolygon = null;
+            showStatus('Polygon cleared', 'info');
+        }
+        
+        function getRankLevel(rank) {
+            const rankLower = rank.toLowerCase();
+            const index = RANK_HIERARCHY.indexOf(rankLower);
+            return index >= 0 ? index : -1;
+        }
+        
+        function isRankInRange(rank, highestRank, lowestRank) {
+            if (!highestRank && !lowestRank) return true;
+            
+            const rankLevel = getRankLevel(rank);
+            if (rankLevel === -1) return false;
+            
+            const highestLevel = highestRank ? getRankLevel(highestRank) : 0;
+            const lowestLevel = lowestRank ? getRankLevel(lowestRank) : RANK_HIERARCHY.length - 1;
+            
+            return highestLevel <= rankLevel && rankLevel <= lowestLevel;
+        }
+        
+        function pointInPolygon(point, polygon) {
+            const [lon, lat] = point;
+            const n = polygon.length;
+            let inside = false;
+            
+            let p1_lon = polygon[0][0], p1_lat = polygon[0][1];
+            for (let i = 1; i <= n; i++) {
+                const p2_lon = polygon[i % n][0];
+                const p2_lat = polygon[i % n][1];
+                
+                if (lat > Math.min(p1_lat, p2_lat)) {
+                    if (lat <= Math.max(p1_lat, p2_lat)) {
+                        if (lon <= Math.max(p1_lon, p2_lon)) {
+                            if (p1_lat !== p2_lat) {
+                                const x_intersection = (lat - p1_lat) * (p2_lon - p1_lon) / (p2_lat - p1_lat) + p1_lon;
+                                if (p1_lon === p2_lon || lon <= x_intersection) {
+                                    inside = !inside;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                p1_lon = p2_lon;
+                p1_lat = p2_lat;
+            }
+            
+            return inside;
+        }
+        
+        function getColorForTaxon(taxonId) {
+            if (!colorMap[taxonId]) {
+                const index = Object.keys(colorMap).length % COLOR_PALETTE.length;
+                colorMap[taxonId] = COLOR_PALETTE[index];
+            }
+            return colorMap[taxonId];
+        }
+        
+        async function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function raritySize(obsCount) {
+            // Scale pin size based on global observation count
+            // 10 obs → big (15)
+            // 1,000 obs → medium (9)
+            // 100,000 obs → small (6)
+            return Math.max(
+                3,
+                18 - Math.log(obsCount + 1) / Math.log(9) * 3
+            );
+        }
+        
+        function endemismSize(endemismScore) {
+            // Scale pin size based on endemism (0-1)
+            // High endemism (close to 1) → big pins
+            // Low endemism (close to 0) → small pins
+            
+            if (endemismScore === 0) return 3;
+            //const invertedLog = -Math.log10(Math.max(endemismScore, 0.001));
+            return (3 + (endemismScore*12));
+        }
+        
+        function getPinRadius(taxonId) {
+            const mode = pinSizeMode;
+            
+            if (mode === 'none') {
+                return 3;
+            } else if (mode === 'rarity') {
+                const globalCount = taxaGlobalCounts[taxonId] || 1000;
+                return raritySize(globalCount);
+            } else if (mode === 'endemism') {
+                const taxon = taxaData[taxonId];
+                if (!taxon || taxon.endemismScore === undefined) return 3;
+                return endemismSize(taxon.endemismScore);
+            }
+            
+            return 3;
+        }
+        
+        function changePinSizeMode() {
+            pinSizeMode = document.getElementById('pinSizeSelect').value;
+            displayMapLayer(); // Redraw with new pin sizes
+        }
+        
+        // ===================================================================
+        // NEW: BATCH SPLITTING FUNCTIONS
+        // ===================================================================
+        
+        async function getTotalCount(params) {
+            // Get total count without fetching observations
+            const url = new URL('https://api.inaturalist.org/v1/observations');
+            Object.keys(params).forEach(key => {
+                if (params[key] !== null && params[key] !== undefined) {
+                    url.searchParams.append(key, params[key]);
+                }
+            });
+            url.searchParams.append('per_page', '0');
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) return 0;
+                const data = await response.json();
+                return data.total_results || 0;
+            } catch (error) {
+                console.error('Error getting total count:', error);
+                return 0;
+            }
+        }
+        
+        function splitBboxIntoStrips(bbox, numStrips) {
+            // Split bounding box into horizontal strips
+            const strips = [];
+            const latRange = bbox.nelat - bbox.swlat;
+            const stripHeight = latRange / numStrips;
+            
+            for (let i = 0; i < numStrips; i++) {
+                strips.push({
+                    swlat: bbox.swlat + (stripHeight * i),
+                    nelat: bbox.swlat + (stripHeight * (i + 1)),
+                    swlng: bbox.swlng,
+                    nelng: bbox.nelng
+                });
+            }
+            
+            return strips;
+        }
+        
+        async function fetchWithAutoBatching(params, maxResults, description, isBbox = false, bbox = null) {
+            console.log(`${description} - checking total count...`);
+            
+            // Check total available observations
+            const totalCount = await getTotalCount(params);
+            console.log(`Total available: ${totalCount.toLocaleString()}`);
+            
+            if (totalCount <= API_LIMIT) {
+                // Simple case - no batching needed
+                return await fetchObservations(params, Math.min(maxResults, totalCount), description);
+            }
+            
+            // Need to batch
+            console.log(`⚠️ Total exceeds ${API_LIMIT} - using batch strategy`);
+            
+            if (isBbox && bbox) {
+                // Geographic splitting for bbox queries
+                const numStrips = Math.ceil(totalCount / API_LIMIT);
+                console.log(`Splitting bbox into ${numStrips} horizontal strips`);
+                console.log(`Original bbox: SW(${bbox.swlat}, ${bbox.swlng}) to NE(${bbox.nelat}, ${bbox.nelng})`);
+                
+                const strips = splitBboxIntoStrips(bbox, numStrips);
+                const allObs = [];
+                const obsIds = new Set();
+                
+                for (let i = 0; i < strips.length; i++) {
+                    const strip = strips[i];
+                    console.log(`Strip ${i + 1} bbox: SW(${strip.swlat.toFixed(4)}, ${strip.swlng.toFixed(4)}) to NE(${strip.nelat.toFixed(4)}, ${strip.nelng.toFixed(4)})`);
+                    
+                    const stripParams = { ...params };
+                    stripParams.swlat = strip.swlat;
+                    stripParams.nelat = strip.nelat;
+                    stripParams.swlng = strip.swlng;
+                    stripParams.nelng = strip.nelng;
+                    
+                    updateProgress(
+                        10 + (i / strips.length) * 30,
+                        `Fetching strip ${i + 1}/${strips.length}...`
+                    );
+                    
+                    const stripObs = await fetchObservations(
+                        stripParams,
+                        API_LIMIT,
+                        `Strip ${i + 1}/${strips.length} (lat ${strip.swlat.toFixed(2)}-${strip.nelat.toFixed(2)})`
+                    );
+                    
+                    // Deduplicate by observation ID
+                    const beforeCount = allObs.length;
+                    stripObs.forEach(obs => {
+                        if (!obsIds.has(obs.id)) {
+                            obsIds.add(obs.id);
+                            allObs.push(obs);
+                        }
+                    });
+                    const newObs = allObs.length - beforeCount;
+                    
+                    console.log(`Strip ${i + 1}: fetched ${stripObs.length} obs, ${newObs} new unique, total unique: ${allObs.length}`);
+                    
+                    // Don't break early - fetch all strips to get complete coverage
+                    // The maxResults limit will be applied after all strips are fetched
+                    
+                    await sleep(500);
+                }
+                
+                console.log(`All strips fetched: ${allObs.length} total observations`);
+                return allObs.slice(0, maxResults);
+                
+            } else {
+                // User observations - split by month
+                console.log('Splitting user query by month');
+                
+                const months = params.month ? params.month.split(',').map(m => parseInt(m)) : [1,2,3,4,5,6,7,8,9,10,11,12];
+                const allObs = [];
+                const obsIds = new Set();
+                
+                for (let i = 0; i < months.length; i++) {
+                    const month = months[i];
+                    const monthParams = { ...params };
+                    monthParams.month = month;
+                    
+                    updateProgress(
+                        10 + (i / months.length) * 30,
+                        `Fetching month ${month}...`
+                    );
+                    
+                    const monthObs = await fetchObservations(
+                        monthParams,
+                        API_LIMIT,
+                        `Month ${month}`
+                    );
+                    
+                    // Deduplicate
+                    monthObs.forEach(obs => {
+                        if (!obsIds.has(obs.id)) {
+                            obsIds.add(obs.id);
+                            allObs.push(obs);
+                        }
+                    });
+                    
+                    // MEMORY OPTIMIZATION: Clear monthly batch after deduplication
+                    monthObs.length = 0;
+                    
+                    console.log(`Month ${month}: total unique: ${allObs.length}`);
+                    
+                    if (allObs.length >= maxResults) break;
+                    
+                    await sleep(500);
+                }
+                
+                return allObs.slice(0, maxResults);
+            }
+        }
+        
+        // ===================================================================
+        // API FUNCTIONS (MODIFIED)
+        // ===================================================================
+        
+        async function fetchObservations(params, maxResults, description) {
+            console.log(description);
+            
+            // MEMORY OPTIMIZATION: Convert to GeoJSON features immediately instead of storing raw observations
+            const allFeatures = [];
+            let page = 1;
+            const perPage = Math.min(200, maxResults);
+            
+            params.per_page = perPage;
+            
+            while (allFeatures.length < maxResults) {
+                params.page = page;
+                
+                try {
+                    const url = new URL('https://api.inaturalist.org/v1/observations');
+                    Object.keys(params).forEach(key => {
+                        if (params[key] !== null && params[key] !== undefined) {
+                            url.searchParams.append(key, params[key]);
+                        }
+                    });
+                    
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    const results = data.results || [];
+                    
+                    if (results.length === 0) break;
+                    
+                    // MEMORY OPTIMIZATION: Convert to lightweight GeoJSON immediately
+                    // Only keep essential properties, discard heavy API response data
+                    results.forEach(obs => {
+                        if (obs.geojson && obs.taxon) {
+                            allFeatures.push({
+                                type: 'Feature',
+                                geometry: obs.geojson,
+                                taxon: {
+                                    id: obs.taxon.id,
+                                    name: obs.taxon.name,
+                                    preferred_common_name: obs.taxon.preferred_common_name,
+                                    rank: obs.taxon.rank,
+                                    iconic_taxon_name: obs.taxon.iconic_taxon_name,
+                                    is_conservation_status_sensitive: obs.taxon.is_conservation_status_sensitive
+                                },
+                                geoprivacy: obs.geoprivacy,
+                                positional_accuracy: obs.positional_accuracy,
+                                id: obs.id,
+                                observed_on: obs.observed_on || obs.time_observed_at,
+                                user_login: obs.user ? obs.user.login : null
+                            });
+                        }
+                    });
+                    
+                    const totalResults = data.total_results || 0;
+                    
+                    console.log(`Page ${page}: ${results.length} obs | Total: ${allFeatures.length}`);
+                    
+                    // Clear results array to free memory immediately
+                    results.length = 0;
+                    
+                    if (allFeatures.length >= totalResults) break;
+                    if (allFeatures.length >= maxResults) break;
+                    if (allFeatures.length >= API_LIMIT) break; // Hard limit per batch
+                    
+                    page++;
+                    await sleep(500);
+                    
+                } catch (error) {
+                    console.error(`Error fetching page ${page}:`, error);
+                    showStatus(`Error fetching data: ${error.message}`, 'error');
+                    break;
+                }
+            }
+            
+            return allFeatures.slice(0, maxResults);
+        }
+        
+        async function fetchBoundingBoxObservations(bbox, taxonId, highestRank, lowestRank, months, yearStart, yearEnd, placeId, maxResults) {
+            const params = {
+                quality_grade: 'research,needs_id'
+            };
+            
+            // Use place_id if provided, otherwise use bounding box
+            if (placeId) {
+                params.place_id = placeId;
+            } else {
+                params.swlat = bbox.swlat;
+                params.swlng = bbox.swlng;
+                params.nelat = bbox.nelat;
+                params.nelng = bbox.nelng;
+            }
+            
+            if (taxonId) {
+                if (/^\d+$/.test(taxonId)) {
+                    params.taxon_id = taxonId;
+                } else {
+                    params.taxon_name = taxonId;
+                }
+            }
+            
+            // Add highest rank filter to API if specified
+            // This filters OUT observations broader than this rank
+            if (highestRank) {
+                params.hrank = highestRank; // iNaturalist API: highest (broadest) acceptable rank
+            }
+            
+            // Note: We do NOT filter by lowest rank during retrieval
+            // That will be applied during aggregation/comparison phase
+            
+            if (months && months.length > 0) {
+                params.month = months.join(',');
+            }
+            
+            // Add year range filters
+            if (yearStart) {
+                params.year = yearStart;
+                if (yearEnd && yearEnd !== yearStart) {
+                    // iNaturalist API supports d1 and d2 for date ranges
+                    params.d1 = `${yearStart}-01-01`;
+                    params.d2 = `${yearEnd}-12-31`;
+                    delete params.year; // Use d1/d2 instead of year
+                }
+            } else if (yearEnd) {
+                params.year = yearEnd;
+            }
+            
+            let desc = placeId ? `📍 Fetching observations from place ${placeId}` : '📍 Fetching observations from region';
+            if (taxonId) desc += ` (taxon: ${taxonId})`;
+            if (highestRank) desc += ` (rank ≤ ${highestRank})`;
+            if (yearStart || yearEnd) {
+                if (yearStart && yearEnd) desc += ` (${yearStart}-${yearEnd})`;
+                else if (yearStart) desc += ` (${yearStart}+)`;
+                else desc += ` (≤${yearEnd})`;
+            }
+            
+            return await fetchWithAutoBatching(params, maxResults, desc, true, bbox);
+        }
+        
+        async function fetchUserSpeciesCounts(userId, taxonId) {
+            // Use species_counts endpoint to get user's complete life list
+            // This is MUCH more efficient than fetching individual observations
+            console.log(`👤 Fetching ${userId}'s life list (all taxa, worldwide)...`);
+            
+            const allTaxa = [];
+            let page = 1;
+            const perPage = 500; // Max allowed by API
+            
+            while (true) {
+                try {
+                    const url = new URL('https://api.inaturalist.org/v1/observations/species_counts');
+                    url.searchParams.append('user_id', userId);
+                    url.searchParams.append('per_page', perPage);
+                    url.searchParams.append('page', page);
+                    
+                    // Only filter by taxon if specified - NO other filters
+                    // (no months, no geography - we want their complete global life list)
+                    if (taxonId) {
+                        if (/^\d+$/.test(taxonId)) {
+                            url.searchParams.append('taxon_id', taxonId);
+                        } else {
+                            url.searchParams.append('taxon_name', taxonId);
+                        }
+                    }
+                    
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    const results = data.results || [];
+                    
+                    if (results.length === 0) break;
+                    
+                    // Convert species_counts format to our taxa format
+                    results.forEach(item => {
+                        if (item.taxon) {
+                            allTaxa.push({
+                                taxon_id: item.taxon.id,
+                                scientific_name: item.taxon.name || 'Unknown',
+                                common_name: item.taxon.preferred_common_name || '',
+                                rank: item.taxon.rank || 'unknown',
+                                iconic_taxon_name: item.taxon.iconic_taxon_name || 'Unknown',
+                                observations_count: item.count || 0,
+                                coordinates: [], // No coordinate data from species_counts
+                                hasObscured: false // Unknown from species_counts
+                            });
+                        }
+                    });
+                    
+                    const totalResults = data.total_results || 0;
+                    const progress = Math.min(100, (allTaxa.length / totalResults) * 100);
+                    updateProgress(
+                        85 + (progress * 0.05), // 85-90% range
+                        `Fetching user life list: ${allTaxa.length}/${totalResults} taxa`
+                    );
+                    
+                    console.log(`Page ${page}: ${results.length} taxa | Total: ${allTaxa.length}/${totalResults}`);
+                    
+                    if (allTaxa.length >= totalResults) break;
+                    
+                    page++;
+                    await sleep(300); // Be respectful to API
+                    
+                } catch (error) {
+                    console.error(`Error fetching species counts page ${page}:`, error);
+                    showStatus(`Error fetching user data: ${error.message}`, 'error');
+                    break;
+                }
+            }
+            
+            console.log(`✓ Fetched ${allTaxa.length} unique taxa from user's life list`);
+            return allTaxa;
+        }
+        
+        async function fetchGlobalObservationCounts(taxonIds) {
+            console.log(`📊 Fetching global observation counts for ${taxonIds.length} taxa...`);
+            
+            const counts = {};
+            const batchSize = 30;
+            
+            for (let i = 0; i < taxonIds.length; i += batchSize) {
+                const batch = taxonIds.slice(i, i + batchSize);
+                
+                try {
+                    const url = new URL('https://api.inaturalist.org/v1/observations/species_counts');
+                    url.searchParams.append('taxon_id', batch.join(','));
+                    url.searchParams.append('per_page', batch.length);
+                    
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    const results = data.results || [];
+                    
+                    results.forEach(item => {
+                        if (item.taxon && item.taxon.id) {
+                            counts[item.taxon.id] = item.count || 0;
+                        }
+                    });
+                    
+                    const progress = Math.min(100, ((i + batch.length) / taxonIds.length) * 100);
+                    updateProgress(
+                        50 + (progress * 0.35),
+                        `Fetching rarity data: ${Math.round(progress)}%`
+                    );
+                    
+                    console.log(`Batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(taxonIds.length / batchSize)}: Fetched ${results.length} counts`);
+                    
+                    if (i + batchSize < taxonIds.length) {
+                        await sleep(500);
+                    }
+                    
+                } catch (error) {
+                    console.error(`Error fetching global counts for batch starting at ${i}:`, error);
+                }
+            }
+            
+            console.log(`✓ Fetched global counts for ${Object.keys(counts).length}/${taxonIds.length} taxa`);
+            return counts;
+        }
+        
+        // ===================================================================
+        // DATA PROCESSING FUNCTIONS
+        // ===================================================================
+        
+        function filterByPolygon(observations, polygon) {
+            return observations.filter(obs => {
+                const coords = obs.geometry?.coordinates;
+                if (!coords) return false;
+                return pointInPolygon([coords[0], coords[1]], polygon);
+            });
+        }
+        
+        function filterByRankRange(observations, highestRank, lowestRank) {
+            if (!highestRank && !lowestRank) return observations;
+            
+            return observations.filter(obs => {
+                const taxon = obs.taxon || {};
+                const rank = taxon.rank || '';
+                return isRankInRange(rank, highestRank, lowestRank);
+            });
+        }
+        
+       function extractTaxaWithDetails(observations) {
+    const taxaDict = {};
+
+    observations.forEach(obs => {
+        const taxon = obs.taxon;
+        if (!taxon || !taxon.id) return;
+
+        const taxonId = taxon.id;
+
+        if (!taxaDict[taxonId]) {
+            taxaDict[taxonId] = {
+                taxon_id: taxonId,
+                scientific_name: taxon.name || 'Unknown',
+                common_name: taxon.preferred_common_name || '',
+                rank: taxon.rank || 'unknown',
+                iconic_taxon_name: taxon.iconic_taxon_name || 'Unknown',
+                observations_count: 0,
+                coordinates: [],
+                hasObscured: false
+            };
+        }
+
+        taxaDict[taxonId].observations_count++;
+
+        const coords = obs.geometry?.coordinates;
+        if (!coords) return;
+
+        // Determine if this obs should be treated as obscured
+        const isSensitive = taxon.is_conservation_status_sensitive === true;
+        const geoprivacy = obs.geoprivacy || 'open';
+        const isObscured = isSensitive || geoprivacy === "obscured" || geoprivacy === "private";
+
+        // Update taxon-level flag
+        taxaDict[taxonId].hasObscured = taxaDict[taxonId].hasObscured || isObscured;
+
+        // Push coordinate info
+        taxaDict[taxonId].coordinates.push({
+            lat: coords[1],
+            lng: coords[0],
+            geoprivacy: isObscured ? "obscured" : geoprivacy, // force obscured for sensitive taxa
+            accuracy: isObscured ? 10000 : obs.positional_accuracy, // inflate for obscured
+            observation_id: obs.id,
+            observed_on: obs.observed_on,
+            user_login: obs.user_login
+        });
+    });
+
+    return Object.values(taxaDict);
+}
+
+        
+        function aggregateTaxaByRank(taxaList, lowestRank) {
+            // If no lowest rank specified, return as-is
+            if (!lowestRank) return taxaList;
+            
+            // Group taxa by their ancestor at the specified rank
+            // For example, if lowestRank is 'species', roll up all subspecies/varieties to their parent species
+            
+            const lowestRankLevel = getRankLevel(lowestRank);
+            const aggregated = {};
+            
+            taxaList.forEach(taxon => {
+                const taxonRankLevel = getRankLevel(taxon.rank);
+                
+                // If this taxon is at or broader than the lowest rank, keep it as-is
+                if (taxonRankLevel <= lowestRankLevel) {
+                    const key = taxon.taxon_id;
+                    if (!aggregated[key]) {
+                        aggregated[key] = { ...taxon };
+                    } else {
+                        // Merge if duplicate (shouldn't happen, but just in case)
+                        aggregated[key].observations_count += taxon.observations_count;
+                        aggregated[key].coordinates.push(...taxon.coordinates);
+                        aggregated[key].hasObscured = aggregated[key].hasObscured || taxon.hasObscured;
+                    }
+                } else {
+                    // This taxon is more specific than lowestRank
+                    // We need to aggregate it to its ancestor at lowestRank level
+                    // Unfortunately, we don't have ancestor info in the observation data
+                    // So we'll just filter these out for comparison purposes
+                    // (In a perfect world, we'd query the taxon API to get ancestors)
+                    
+                    // For now, skip taxa that are too specific
+                    // This means subspecies won't show up if lowestRank is species
+                    console.log(`Filtering out ${taxon.scientific_name} (${taxon.rank}) - more specific than ${lowestRank}`);
+                }
+            });
+            
+            return Object.values(aggregated);
+        }
+        
+        function compareTaxaLists(groupA, groupB) {
+            const idsA = new Set(groupA.map(t => t.taxon_id));
+            const idsB = new Set(groupB.map(t => t.taxon_id));
+            
+            const uniqueIds = new Set([...idsA].filter(id => !idsB.has(id)));
+            const uniqueTaxa = groupA.filter(t => uniqueIds.has(t.taxon_id));
+            
+            return {
+                uniqueTaxa,
+                stats: {
+                    group_a_total: idsA.size,
+                    group_a_obs_count: groupA.reduce((sum, t) => sum + t.observations_count, 0),
+                    group_b_total: idsB.size,
+                    overlap: new Set([...idsA].filter(id => idsB.has(id))).size,
+                    unique_to_a: uniqueIds.size,
+                    unique_obs_count: uniqueTaxa.reduce((sum, t) => sum + t.observations_count, 0)
+                }
+            };
+        }
+        
+        // ===================================================================
+        // DISPLAY FUNCTIONS
+        // ===================================================================
+        
+        function cycleSortColumn(column) {
+            // If clicking the same column, toggle direction
+            if (currentSortColumn === column) {
+                currentSortDirection = currentSortDirection === 'desc' ? 'asc' : 'desc';
+            } else {
+                // New column, default to descending (except for species which defaults to ascending)
+                currentSortColumn = column;
+                currentSortDirection = column === 'species' ? 'asc' : 'desc';
+            }
+            
+            updateSortArrows();
+            updateLegend();
+        }
+        
+        function updateSortArrows() {
+            // Reset all arrows
+            ['species', 'local', 'global', 'endemism', 'obscured'].forEach(col => {
+                const arrow = document.getElementById(`sortArrow-${col}`);
+                if (arrow) {
+                    arrow.classList.remove('active');
+                    arrow.textContent = '↕';
+                }
+            });
+            
+            // Set active arrow
+            const activeArrow = document.getElementById(`sortArrow-${currentSortColumn}`);
+            if (activeArrow) {
+                activeArrow.classList.add('active');
+                activeArrow.textContent = currentSortDirection === 'asc' ? '↑' : '↓';
+            }
+        }
+        
+        function populateResultsMonthFilter(months) {
+            const monthGrid = document.getElementById('resultsMonthGrid');
+            monthGrid.innerHTML = '';
+            
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            months.forEach(month => {
+                const label = document.createElement('label');
+                label.className = 'month-checkbox';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = month;
+                checkbox.checked = true;
+                checkbox.onchange = () => updateMonthFilter();
+                
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(' ' + monthNames[month - 1]));
+                
+                monthGrid.appendChild(label);
+            });
+            
+            activeMonthFilter = [...months];
+        }
+        
+        function updateMonthFilter() {
+            const checkboxes = document.querySelectorAll('#resultsMonthGrid input[type="checkbox"]:checked');
+            activeMonthFilter = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            
+            // Recalculate visible observation counts for each taxon
+            Object.keys(taxaData).forEach(taxonId => {
+                const taxon = taxaData[taxonId];
+                let visibleCount = 0;
+                
+                taxon.observations.forEach(obs => {
+                    if (obs.properties.observed_on) {
+                        const obsDate = new Date(obs.properties.observed_on);
+                        const obsMonth = obsDate.getMonth() + 1;
+                        if (activeMonthFilter.includes(obsMonth)) {
+                            visibleCount++;
+                        }
+                    } else if (activeMonthFilter.length > 0) {
+                        // If no date, still count if month filter is active (assume it could be any month)
+                        visibleCount++;
+                    }
+                });
+                
+                // Store visible count separately from total count
+                taxon.visibleCount = visibleCount;
+            });
+            
+            // Re-display the map with month filter applied
+            displayMapLayer();
+            
+            // Update the legend to show new counts
+            updateLegend();
+            
+            console.log('Active month filter:', activeMonthFilter);
+        }
+        
+        function displayResults(taxa) {
+            if (currentLayer) {
+                map.removeLayer(currentLayer);
+            }
+            
+            taxaData = {};
+            allProcessedFeatures = [];
+            
+            let obscuredCount = 0;
+            
+            taxa.forEach(taxon => {
+                // Calculate endemism score
+                const localCount = taxon.observations_count;
+                const globalCount = taxaGlobalCounts[taxon.taxon_id] || localCount;
+                const endemismScore = globalCount > 0 ? localCount / globalCount : 0;
+                
+                taxaData[taxon.taxon_id] = {
+                    scientific_name: taxon.scientific_name,
+                    common_name: taxon.common_name,
+                    rank: taxon.rank,
+                    count: taxon.observations_count,
+                    visibleCount: taxon.observations_count, // Initialize to full count
+                    // MEMORY OPTIMIZATION: Store only [lat, lng] pairs instead of full feature objects
+                    coordinates: taxon.coordinates.map(c => [c.lat, c.lng]),
+                    hasObscured: taxon.hasObscured,
+                    endemismScore: endemismScore
+                };
+                
+                if (!(taxon.taxon_id in taxaVisibility)) {
+                    taxaVisibility[taxon.taxon_id] = true;
+                }
+                
+                taxon.coordinates.forEach(coord => {
+                    const feature = {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [coord.lng, coord.lat]
+                        },
+                        properties: {
+                            taxon_id: taxon.taxon_id,
+                            scientific_name: taxon.scientific_name,
+                            common_name: taxon.common_name,
+                            rank: taxon.rank,
+                            iconic_taxon: taxon.iconic_taxon_name,
+                            geoprivacy: coord.geoprivacy,
+                            accuracy: coord.accuracy,
+                            observation_id: coord.observation_id,
+                            observed_on: coord.observed_on,
+                            user_login: coord.user_login,
+                            lat: coord.lat,
+                            lng: coord.lng
+                        }
+                    };
+                    
+                    allProcessedFeatures.push(feature);
+                    // MEMORY OPTIMIZATION: Don't duplicate features in taxaData
+                    
+                    if (coord.geoprivacy === 'obscured') {
+                        obscuredCount++;
+                    }
+                });
+                
+                // MEMORY OPTIMIZATION: Clear the full coordinate objects now that we've extracted what we need
+                taxon.coordinates = null;
+            });
+            
+            displayMapLayer();
+            
+            const totalObs = allProcessedFeatures.length;
+            document.getElementById('totalObs').textContent = totalObs;
+            document.getElementById('uniqueTaxa').textContent = Object.keys(taxaData).length;
+            document.getElementById('obscuredCount').textContent = obscuredCount;
+            
+            document.getElementById('statsContainer').style.display = 'block';
+            const legendContainer = document.getElementById('legendContainer');
+            console.log('Setting legendContainer display to block, current:', legendContainer.style.display);
+            legendContainer.style.display = 'block';
+            console.log('After setting, display is:', legendContainer.style.display);
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('fileDropContainer').style.display = 'none';
+            
+            // Populate month filter with the months that were queried
+            if (queriedMonths.length > 0) {
+                populateResultsMonthFilter(queriedMonths);
+            }
+            
+            updateLegend();
+        }
+        
+        function displayMapLayer() {
+            if (currentLayer) {
+                map.removeLayer(currentLayer);
+            }
+            
+            // Filter to visible taxa AND active months
+            const visibleFeatures = allProcessedFeatures.filter(feature => {
+                // Check taxa visibility
+                if (taxaVisibility[feature.properties.taxon_id] === false) {
+                    return false;
+                }
+                
+                // Check month filter if active
+                if (activeMonthFilter.length > 0 && feature.properties.observed_on) {
+                    const obsDate = new Date(feature.properties.observed_on);
+                    const obsMonth = obsDate.getMonth() + 1; // JavaScript months are 0-indexed
+                    if (!activeMonthFilter.includes(obsMonth)) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+            
+            const geojson = {
+                type: 'FeatureCollection',
+                features: visibleFeatures
+            };
+            
+            currentLayer = L.geoJSON(geojson, {
+                pointToLayer: function(feature, latlng) {
+                    const color = getColorForTaxon(feature.properties.taxon_id);
+                    const isObscured = feature.properties.geoprivacy === 'obscured';
+                    const radius = getPinRadius(feature.properties.taxon_id);
+                    
+                    if (isObscured) {
+                        return L.circleMarker(latlng, {
+                            radius: radius,
+                            fillColor: 'transparent',
+                            color: color,
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0
+                        });
+                    } else {
+                        return L.circleMarker(latlng, {
+                            radius: radius,
+                            fillColor: color,
+                            color: '#fff',
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        });
+                    }
+                },
+                onEachFeature: function(feature, layer) {
+                    const props = feature.properties;
+                    const obsUrl = `https://www.inaturalist.org/observations/${props.observation_id}`;
+                    const stalkUrl = (props.user_login && props.observed_on)
+                        ? `https://www.inaturalist.org/observations?on=${props.observed_on}&user_id=${props.user_login}&verifiable=any`
+                        : null;
+                    const stalkLink = stalkUrl
+                        ? `<div class="popup-detail"><strong>Stalk:</strong> <a href="${stalkUrl}" target="_blank">${props.user_login} on ${props.observed_on}</a></div>`
+                        : '';
+                    const triangulateUrl = (props.user_login && props.observed_on)
+                        ? `triangulate.html?observation_id=${props.observation_id}&user_id=${props.user_login}&date=${props.observed_on}`
+                        : null;
+                    const triangulateLink = triangulateUrl
+                        ? `<div class="popup-detail"><strong>Triangulate:</strong> <a href="${triangulateUrl}" target="_blank">Open trail view</a></div>`
+                        : '';
+                    const globalCount = taxaGlobalCounts[props.taxon_id];
+                    const globalCountText = globalCount ? `<div class="popup-detail"><strong>Global Observations:</strong> ${globalCount.toLocaleString()}</div>` : '';
+                    
+                    const taxon = taxaData[props.taxon_id];
+                    const endemismText = taxon && taxon.endemismScore ? 
+                        `<div class="popup-detail"><strong>Endemism:</strong> ${(taxon.endemismScore * 100).toFixed(2)}% of global in region</div>` : '';
+                    
+                    const popupContent = `
+                        <div class="popup-title">${props.scientific_name}</div>
+                        ${props.common_name ? `<div class="popup-common">${props.common_name}</div>` : ''}
+                        <div class="popup-detail"><strong>Rank:</strong> ${props.rank}</div>
+                        <div class="popup-detail"><strong>Group:</strong> ${props.iconic_taxon}</div>
+                        ${globalCountText}
+                        ${endemismText}
+                        ${props.geoprivacy !== 'open' ? `<div class="popup-detail"><strong>Privacy:</strong> ${props.geoprivacy}</div>` : ''}
+                        ${props.accuracy ? `<div class="popup-detail"><strong>Accuracy:</strong> ±${props.accuracy}m</div>` : ''}
+                        <div class="popup-detail"><strong>Observation:</strong> <a href="${obsUrl}" target="_blank">View on iNaturalist</a></div>
+                        ${stalkLink}
+                        ${triangulateLink}
+                        ${props.observed_on ? `<div class="popup-detail"><strong>Date:</strong> ${props.observed_on}</div>` : ''}
+                        <div class="popup-detail"><strong>Coords:</strong> ${props.lat.toFixed(5)}, ${props.lng.toFixed(5)}</div>
+                    `;
+                    layer.bindPopup(popupContent);
+                }
+            }).addTo(map);
+            
+            if (visibleFeatures.length > 0) {
+                map.fitBounds(currentLayer.getBounds(), { padding: [50, 50] });
+            }
+        }
+        
+        function updateLegend() {
+            const legendItems = document.getElementById('legendItems');
+            console.log('updateLegend called, legendItems element:', legendItems);
+            legendItems.innerHTML = '';
+            
+            let sortedTaxa = Object.entries(taxaData);
+            console.log('Total taxa before filtering:', sortedTaxa.length);
+            
+            // Filter out taxa with 0 visible observations when month filter is active
+            sortedTaxa = sortedTaxa.filter(([taxonId, data]) => {
+                const visibleCount = data.visibleCount !== undefined ? data.visibleCount : data.count;
+                return visibleCount > 0;
+            });
+            
+            console.log('Taxa after filtering:', sortedTaxa.length);
+            
+            // Update stats with filtered counts
+            const totalVisibleObs = sortedTaxa.reduce((sum, [id, data]) => {
+                const visibleCount = data.visibleCount !== undefined ? data.visibleCount : data.count;
+                return sum + visibleCount;
+            }, 0);
+            const uniqueVisibleTaxa = sortedTaxa.length;
+            
+            document.getElementById('totalObs').textContent = totalVisibleObs;
+            document.getElementById('uniqueTaxa').textContent = uniqueVisibleTaxa;
+            
+            // Sort based on current column and direction
+            sortedTaxa.sort((a, b) => {
+                const [idA, dataA] = a;
+                const [idB, dataB] = b;
+                
+                let compareResult = 0;
+                
+                switch(currentSortColumn) {
+                    case 'species':
+                        compareResult = dataA.scientific_name.localeCompare(dataB.scientific_name);
+                        break;
+                    case 'local':
+                        const countA = dataA.visibleCount !== undefined ? dataA.visibleCount : dataA.count;
+                        const countB = dataB.visibleCount !== undefined ? dataB.visibleCount : dataB.count;
+                        compareResult = countA - countB;
+                        break;
+                    case 'global':
+                        const globalA = taxaGlobalCounts[idA] || 0;
+                        const globalB = taxaGlobalCounts[idB] || 0;
+                        compareResult = globalA - globalB;
+                        break;
+                    case 'endemism':
+                        // Calculate endemism score (local/global ratio, higher = more endemic)
+                        const localA = dataA.visibleCount !== undefined ? dataA.visibleCount : dataA.count;
+                        const localB = dataB.visibleCount !== undefined ? dataB.visibleCount : dataB.count;
+                        const globalCountA = taxaGlobalCounts[idA] || 1;
+                        const globalCountB = taxaGlobalCounts[idB] || 1;
+                        const endemismA = globalCountA > 0 ? (localA / globalCountA) : 0;
+                        const endemismB = globalCountB > 0 ? (localB / globalCountB) : 0;
+                        compareResult = endemismA - endemismB;
+                        break;
+                    case 'obscured':
+                        // Sort by whether has obscured (yes first or no first depending on direction)
+                        compareResult = (dataA.hasObscured ? 1 : 0) - (dataB.hasObscured ? 1 : 0);
+                        break;
+                }
+                
+                // Apply direction
+                return currentSortDirection === 'asc' ? compareResult : -compareResult;
+            });
+            
+            sortedTaxa.forEach(([taxonId, data]) => {
+                const color = getColorForTaxon(taxonId);
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+                
+                // Checkbox
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'legend-checkbox';
+                checkbox.checked = taxaVisibility[taxonId] !== false;
+                checkbox.onchange = (e) => toggleTaxonVisibility(taxonId, e.target.checked);
+                
+                // Color indicator
+                const colorDiv = document.createElement('div');
+                colorDiv.className = 'legend-color';
+                colorDiv.style.backgroundColor = color;
+                
+                // Species name
+                const textDiv = document.createElement('div');
+                textDiv.className = 'legend-text';
+                textDiv.onclick = () => highlightTaxon(taxonId);
+                textDiv.title = data.scientific_name + (data.common_name ? ` (${data.common_name})` : '');
+                textDiv.innerHTML = `
+                    <div class="legend-scientific">${data.scientific_name}</div>
+                    ${data.common_name ? `<div class="legend-common">${data.common_name}</div>` : ''}
+                `;
+                
+                // Local count (use visibleCount if month filter is active)
+                const localCount = data.visibleCount !== undefined ? data.visibleCount : data.count;
+                const countDiv = document.createElement('div');
+                countDiv.className = 'legend-count';
+                countDiv.textContent = localCount;
+                
+                // Global count
+                const globalCount = taxaGlobalCounts[taxonId] || '';
+                const globalDiv = document.createElement('div');
+                globalDiv.className = 'legend-global-count';
+                globalDiv.textContent = globalCount ? globalCount.toLocaleString() : '—';
+                
+                // Endemism score (local/global ratio as percentage)
+                const endemismDiv = document.createElement('div');
+                endemismDiv.className = 'legend-endemism-score';
+                if (globalCount && globalCount > 0) {
+                    const endemismScore = (localCount / globalCount * 100);
+                    endemismDiv.textContent = endemismScore >= 10 ? endemismScore.toFixed(0) + '%' : endemismScore.toFixed(1) + '%';
+                    endemismDiv.title = `${localCount} local / ${globalCount.toLocaleString()} global`;
+                } else {
+                    endemismDiv.textContent = '—';
+                }
+                
+                // Obscured indicator
+                const obscuredDiv = document.createElement('div');
+                obscuredDiv.className = 'legend-obscured-indicator';
+                if (data.hasObscured) {
+                    const dot = document.createElement('div');
+                    dot.className = 'obscured-indicator';
+                    dot.title = 'Has obscured observations';
+                    obscuredDiv.appendChild(dot);
+                }
+                
+                item.appendChild(checkbox);
+                item.appendChild(colorDiv);
+                item.appendChild(textDiv);
+                item.appendChild(countDiv);
+                item.appendChild(globalDiv);
+                item.appendChild(endemismDiv);
+                item.appendChild(obscuredDiv);
+                
+                legendItems.appendChild(item);
+            });
+            
+            updateSortArrows();
+        }
+        
+        function reassignColors() {
+            // Get only visible taxa
+            const visibleTaxaIds = Object.keys(taxaData).filter(id => taxaVisibility[id] !== false);
+            
+            // Reassign colors evenly across the palette
+            visibleTaxaIds.forEach((taxonId, index) => {
+                colorMap[taxonId] = COLOR_PALETTE[index % COLOR_PALETTE.length];
+            });
+        }
+        
+        function toggleTaxonVisibility(taxonId, visible) {
+            taxaVisibility[taxonId] = visible;
+            
+            // Reassign colors to get better distribution among visible taxa
+            reassignColors();
+            
+            displayMapLayer();
+            updateLegend(); // Update legend to show new colors
+        }
+        
+        function toggleAllTaxa(checkAll) {
+            Object.keys(taxaData).forEach(taxonId => {
+                taxaVisibility[taxonId] = checkAll;
+            });
+            
+            // Reassign colors for better distribution
+            reassignColors();
+            
+            displayMapLayer();
+            updateLegend();
+        }
+        
+        function toggleAllTaxaButton() {
+            // Check if any are unchecked
+            const anyUnchecked = Object.keys(taxaData).some(taxonId => !taxaVisibility[taxonId]);
+            
+            // If any are unchecked, check all. Otherwise, uncheck all
+            toggleAllTaxa(anyUnchecked);
+        }
+        
+        function highlightTaxon(taxonId) {
+            const coordinates = taxaData[taxonId].coordinates;
+            if (!coordinates || coordinates.length === 0) return;
+            
+            // Coordinates are now simple [lat, lng] pairs
+            const bounds = L.latLngBounds(coordinates);
+            
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+        }
+        
+        // ===================================================================
+        // DOWNLOAD FUNCTIONS
+        // ===================================================================
+        
+        function toggleDownloadMenu(event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            const menu = document.getElementById('downloadMenu');
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        // Close menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('downloadMenu');
+            const container = document.querySelector('.download-container');
+            if (menu && container && !container.contains(event.target)) {
+                menu.style.display = 'none';
+            }
+        });
+        
+        function downloadTaxaSummary() {
+            if (!currentResultData || Object.keys(taxaData).length === 0) {
+                showStatus('No data to download', 'error');
+                return;
+            }
+            
+            const excelData = [];
+            const sortedTaxa = Object.entries(taxaData).sort((a, b) => b[1].count - a[1].count);
+            
+            sortedTaxa.forEach(([taxonId, data]) => {
+                const globalCount = taxaGlobalCounts[taxonId] || '';
+                const endemismScore = data.endemismScore || 0;
+                const endemismPercent = endemismScore > 0 ? (endemismScore * 100).toFixed(2) : '';
+                
+                excelData.push({
+                    'Taxon ID': taxonId,
+                    'Scientific Name': data.scientific_name,
+                    'Common Name': data.common_name || '',
+                    'Rank': data.rank,
+                    'Observations in Region': data.count,
+                    'Global Observations': globalCount,
+                    'Endemism (%)': endemismPercent,
+                    'Has Obscured Observations': data.hasObscured ? 'Yes' : 'No'
+                });
+            });
+            
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(excelData);
+            
+            ws['!cols'] = [
+                { wch: 12 },  // Taxon ID
+                { wch: 30 },  // Scientific Name
+                { wch: 25 },  // Common Name
+                { wch: 12 },  // Rank
+                { wch: 22 },  // Observations in Region
+                { wch: 20 },  // Global Observations
+                { wch: 15 },  // Endemism
+                { wch: 25 }   // Has Obscured Observations
+            ];
+            
+            XLSX.utils.book_append_sheet(wb, ws, 'Taxa Summary');
+            
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            const filename = `inaturalist_taxa_summary_${timestamp}.xlsx`;
+            
+            XLSX.writeFile(wb, filename);
+            showStatus('Taxa summary downloaded', 'success');
+            toggleDownloadMenu();
+        }
+        
+        function downloadRawData() {
+            if (!allProcessedFeatures || allProcessedFeatures.length === 0) {
+                showStatus('No observation data to download', 'error');
+                return;
+            }
+            
+            const rawData = [];
+            
+            allProcessedFeatures.forEach(feature => {
+                const props = feature.properties;
+                const coords = feature.geometry.coordinates;
+                const globalCount = taxaGlobalCounts[props.taxon_id] || '';
+                const taxon = taxaData[props.taxon_id];
+                const endemismScore = taxon && taxon.endemismScore ? (taxon.endemismScore * 100).toFixed(2) : '';
+                
+                rawData.push({
+                    'Observation ID': props.observation_id,
+                    'Date Observed': props.observed_on || '',
+                    'Taxon ID': props.taxon_id,
+                    'Scientific Name': props.scientific_name,
+                    'Common Name': props.common_name || '',
+                    'Rank': props.rank,
+                    'Iconic Taxon': props.iconic_taxon,
+                    'Latitude': props.lat,
+                    'Longitude': coords[0],
+                    'Coordinate Precision': props.geoprivacy === 'obscured' ? 'Obscured' : 'Precise',
+                    'Positional Accuracy (m)': props.accuracy || '',
+                    'Global Observation Count': globalCount,
+                    'Endemism (%)': endemismScore,
+                    'iNaturalist URL': `https://www.inaturalist.org/observations/${props.observation_id}`
+                });
+            });
+            
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(rawData);
+            
+            ws['!cols'] = [
+                { wch: 15 }, // Observation ID
+                { wch: 12 }, // Date
+                { wch: 12 }, // Taxon ID
+                { wch: 30 }, // Scientific Name
+                { wch: 25 }, // Common Name
+                { wch: 12 }, // Rank
+                { wch: 15 }, // Iconic Taxon
+                { wch: 12 }, // Latitude
+                { wch: 12 }, // Longitude
+                { wch: 20 }, // Precision
+                { wch: 20 }, // Accuracy
+                { wch: 22 }, // Global Count
+                { wch: 15 }, // Endemism
+                { wch: 50 }  // URL
+            ];
+            
+            XLSX.utils.book_append_sheet(wb, ws, 'Raw Observations');
+            
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            const filename = `inaturalist_raw_observations_${timestamp}.xlsx`;
+            
+            XLSX.writeFile(wb, filename);
+            showStatus(`Raw data downloaded (${rawData.length} observations)`, 'success');
+            toggleDownloadMenu();
+        }
+        
+        function downloadGeoJSON() {
+            if (!currentResultData || Object.keys(taxaData).length === 0) {
+                showStatus('No data to download', 'error');
+                return;
+            }
+            
+            // Create a comprehensive GeoJSON that includes everything needed to restore state
+            const exportData = {
+                type: 'FeatureCollection',
+                metadata: {
+                    exportDate: new Date().toISOString(),
+                    totalObservations: allProcessedFeatures.length,
+                    uniqueTaxa: Object.keys(taxaData).length,
+                    taxaGlobalCounts: taxaGlobalCounts,
+                    taxaData: taxaData,
+                    colorMap: colorMap,
+                    stats: currentResultData.stats || {},
+                    queriedMonths: queriedMonths,
+                    queryPolygon: queryPolygon // Include the polygon boundary
+                },
+                features: allProcessedFeatures
+            };
+            
+            const jsonString = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            a.download = `inaturalist_results_${timestamp}.geojson`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus('GeoJSON downloaded - drag back in to reload', 'success');
+            toggleDownloadMenu();
+        }
+        
+        // ===================================================================
+        // FILE LOADING FUNCTIONS
+        // ===================================================================
+        
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                loadGeoJSONFile(file);
+            }
+        }
+        
+        function loadGeoJSONFile(file) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // Validate it's our export format
+                    if (!data.type || data.type !== 'FeatureCollection' || !data.metadata) {
+                        showStatus('Invalid file format - must be a GeoJSON exported from this tool', 'error');
+                        return;
+                    }
+                    
+                    // Restore global state
+                    allProcessedFeatures = data.features;
+                    taxaGlobalCounts = data.metadata.taxaGlobalCounts || {};
+                    taxaData = data.metadata.taxaData || {};
+                    colorMap = data.metadata.colorMap || {};
+                    currentResultData = { stats: data.metadata.stats || {} };
+                    queriedMonths = data.metadata.queriedMonths || [];
+                    queryPolygon = data.metadata.queryPolygon || null;
+                    
+                    // Optionally display the polygon boundary on the map
+                    if (queryPolygon) {
+                        drawnItems.clearLayers();
+                        const polygonLayer = L.geoJSON(queryPolygon, {
+                            style: {
+                                color: '#b85c38',
+                                weight: 3,
+                                fillOpacity: 0.1,
+                                fillColor: '#e6b17e'
+                            }
+                        });
+                        drawnItems.addLayer(polygonLayer);
+                        currentPolygon = queryPolygon;
+                    }
+                    
+                    // Reset visibility for all taxa
+                    taxaVisibility = {};
+                    Object.keys(taxaData).forEach(taxonId => {
+                        taxaVisibility[taxonId] = true;
+                    });
+                    
+                    // Populate month filter
+                    if (queriedMonths.length > 0) {
+                        populateResultsMonthFilter(queriedMonths);
+                    }
+                    
+                    // Display results
+                    displayMapLayer();
+                    
+                    // Update stats
+                    let obscuredCount = 0;
+                    allProcessedFeatures.forEach(f => {
+                        if (f.properties.geoprivacy === 'obscured') obscuredCount++;
+                    });
+                    
+                    document.getElementById('totalObs').textContent = allProcessedFeatures.length;
+                    document.getElementById('uniqueTaxa').textContent = Object.keys(taxaData).length;
+                    document.getElementById('obscuredCount').textContent = obscuredCount;
+                    
+                    // Show UI elements
+                    document.getElementById('statsContainer').style.display = 'block';
+                    document.getElementById('legendContainer').style.display = 'block';
+                    document.getElementById('emptyState').style.display = 'none';
+                    document.getElementById('fileDropContainer').style.display = 'none';
+                    
+                    // Update legend
+                    updateLegend();
+                    
+                    showStatus(`Loaded ${allProcessedFeatures.length} observations from file`, 'success');
+                    
+                } catch (error) {
+                    console.error('Error loading file:', error);
+                    showStatus(`Error loading file: ${error.message}`, 'error');
+                }
+            };
+            
+            reader.onerror = function() {
+                showStatus('Error reading file', 'error');
+            };
+            
+            reader.readAsText(file);
+        }
+        
+        // Set up drag and drop
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropZone = document.getElementById('fileDropZone');
+            
+            if (dropZone) {
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, preventDefaults, false);
+                });
+                
+                function preventDefaults(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => {
+                        dropZone.classList.add('dragover');
+                    }, false);
+                });
+                
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => {
+                        dropZone.classList.remove('dragover');
+                    }, false);
+                });
+                
+                dropZone.addEventListener('drop', function(e) {
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        loadGeoJSONFile(files[0]);
+                    }
+                }, false);
+            }
+            
+            // Show file drop zone initially
+            document.getElementById('fileDropContainer').style.display = 'block';
+        });
+        
+        // ===================================================================
+        // MAIN QUERY FUNCTION
+        // ===================================================================
+        
+        async function runQuery() {
+            const placeId = document.getElementById('placeIdInput').value.trim() || null;
+            
+            // If using place_id, polygon is optional
+            if (!currentPolygon && !placeId) {
+                showStatus('Please draw a polygon or enter a Place ID!', 'error');
+                return;
+            }
+            
+            const taxon = document.getElementById('taxonInput').value.trim() || null;
+            const highestRank = document.getElementById('highestRankFilter').value || null;
+            const lowestRank = document.getElementById('lowestRankFilter').value || null;
+            const user = document.getElementById('userInput').value.trim() || null;
+            const maxResults = parseInt(document.getElementById('maxResults').value) || 500;
+            const yearStart = document.getElementById('yearStart').value ? parseInt(document.getElementById('yearStart').value) : null;
+            const yearEnd = document.getElementById('yearEnd').value ? parseInt(document.getElementById('yearEnd').value) : null;
+            
+            const monthCheckboxes = document.querySelectorAll('#monthGrid input[type="checkbox"]:checked');
+            const selectedMonths = Array.from(monthCheckboxes).map(cb => parseInt(cb.value));
+            
+            // Store for later use in results month filter
+            queriedMonths = selectedMonths;
+            
+            if (selectedMonths.length === 0) {
+                showStatus('Please select at least one month!', 'error');
+                return;
+            }
+            
+            let coords, bbox;
+            
+            if (currentPolygon) {
+                coords = currentPolygon.geometry.coordinates[0];
+                const lats = coords.map(c => c[1]);
+                const lngs = coords.map(c => c[0]);
+                
+                bbox = {
+                    swlat: Math.min(...lats),
+                    swlng: Math.min(...lngs),
+                    nelat: Math.max(...lats),
+                    nelng: Math.max(...lngs)
+                };
+                
+                // Store the polygon for later export
+                queryPolygon = currentPolygon;
+            } else {
+                // Using place_id without polygon - create a dummy bbox for the function signature
+                bbox = null;
+                coords = null;
+                queryPolygon = null;
+            }
+            
+            const runBtn = document.getElementById('runBtn');
+            runBtn.disabled = true;
+            runBtn.textContent = '⏳ Processing...';
+            
+            updateProgress(5, 'Starting query...');
+            
+            try {
+                updateProgress(10, 'Fetching regional observations...');
+                const groupARaw = await fetchBoundingBoxObservations(
+                    bbox, taxon, highestRank, lowestRank, selectedMonths, yearStart, yearEnd, placeId, maxResults
+                );
+                
+                // Only filter by polygon if we have one
+                let groupAFiltered;
+                if (coords && !placeId) {
+                    updateProgress(45, 'Filtering to polygon...');
+                    groupAFiltered = filterByPolygon(groupARaw, coords);
+                    console.log(`Kept ${groupAFiltered.length}/${groupARaw.length} observations within polygon`);
+                } else {
+                    // Using place_id, no polygon filtering needed
+                    groupAFiltered = groupARaw;
+                    console.log(`Using place_id: ${groupARaw.length} observations`);
+                }
+                
+                // MEMORY OPTIMIZATION: Clear raw observations to free memory
+                groupARaw.length = 0;
+                
+                // Extract all taxa (don't filter by rank yet)
+                const groupATaxaRaw = extractTaxaWithDetails(groupAFiltered);
+                console.log(`Extracted ${groupATaxaRaw.length} unique taxa from region (before aggregation)`);
+                
+                // MEMORY OPTIMIZATION: Clear filtered observations now that we have taxa
+                groupAFiltered.length = 0;
+                
+                // Apply lowest rank aggregation/filtering for comparison
+                const groupATaxa = aggregateTaxaByRank(groupATaxaRaw, lowestRank);
+                console.log(`After aggregation to ${lowestRank || 'no limit'}: ${groupATaxa.length} taxa`);
+                
+                updateProgress(50, 'Fetching rarity data...');
+                const taxonIds = groupATaxa.map(t => t.taxon_id);
+                taxaGlobalCounts = await fetchGlobalObservationCounts(taxonIds);
+                
+                let result;
+                if (user) {
+                    updateProgress(85, 'Fetching user life list...');
+                    // Fetch user's COMPLETE global life list (unfiltered except by taxon)
+                    // No month/geography filters - we want everything they've ever seen
+                    const groupBTaxaRaw = await fetchUserSpeciesCounts(user, taxon);
+                    console.log(`Found ${groupBTaxaRaw.length} unique taxa in user's life list`);
+                    
+                    updateProgress(90, 'Comparing taxa...');
+                    
+                    // Apply lowest rank aggregation to user's list for fair comparison
+                    const groupBTaxa = aggregateTaxaByRank(groupBTaxaRaw, lowestRank);
+                    console.log(`After aggregation to ${lowestRank || 'no limit'}: ${groupBTaxa.length} taxa from user`);
+                    
+                    result = compareTaxaLists(groupATaxa, groupBTaxa);
+                    
+                    console.log('Comparison stats:', result.stats);
+                    showStatus(
+                        `Found ${result.stats.unique_to_a} taxa in region not observed by ${user} (${user} has ${result.stats.group_b_total} total taxa)`,
+                        'success'
+                    );
+                } else {
+                    result = {
+                        uniqueTaxa: groupATaxa,
+                        stats: {
+                            group_a_total: groupATaxa.length,
+                            group_a_obs_count: groupAFiltered.length
+                        }
+                    };
+                    showStatus(`Found ${groupATaxa.length} taxa in region`, 'success');
+                }
+                
+                updateProgress(95, 'Displaying results...');
+                
+                currentResultData = result;
+                
+                const displayTaxa = user ? result.uniqueTaxa : groupATaxa;
+                displayResults(displayTaxa);
+                
+                updateProgress(100, 'Complete!');
+                setTimeout(() => updateProgress(0, ''), 1000);
+                
+            } catch (error) {
+                console.error('Query error:', error);
+                showStatus(`Error: ${error.message}`, 'error');
+                updateProgress(0, '');
+            } finally {
+                runBtn.disabled = false;
+                runBtn.textContent = '🔍 Run Query';
+            }
+        }
+    </script>
+</body>
+</html>
