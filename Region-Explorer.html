@@ -611,7 +611,9 @@
             color: var(--gold);
         }
         
-        .header-checkbox,
+        .header-checkbox {
+            cursor: pointer;
+        }
         .header-color {
             cursor: default;
         }
@@ -1348,9 +1350,7 @@
                         </select>
                     </div>
                     
-                    <button class="btn-secondary" onclick="toggleAllTaxaButton()" id="toggleAllBtn" style="width: 100%; margin-top: 10px;">
-                        ✓ Toggle All Taxa
-                    </button>
+
                 </div>
             </div>
             
@@ -1391,7 +1391,9 @@
                     <div class="legend-title">Taxa Legend</div>
                     
                     <div class="legend-table-header">
-                        <div class="header-cell header-checkbox"></div>
+                        <div class="header-cell header-checkbox" style="cursor:pointer;" title="Toggle all taxa">
+                            <input type="checkbox" id="toggleAllCheckbox" checked style="cursor:pointer; accent-color: var(--gold); width:14px; height:14px;" onchange="handleToggleAllCheckbox(this)">
+                        </div>
                         <div class="header-cell header-color"></div>
                         <div class="header-cell header-species" onclick="cycleSortColumn('species')">
                             <span>Species</span>
@@ -2857,11 +2859,22 @@
         }
         
         function toggleAllTaxaButton() {
-            // Check if any are unchecked
             const anyUnchecked = Object.keys(taxaData).some(taxonId => !taxaVisibility[taxonId]);
-            
-            // If any are unchecked, check all. Otherwise, uncheck all
             toggleAllTaxa(anyUnchecked);
+            syncToggleAllCheckbox();
+        }
+
+        function handleToggleAllCheckbox(cb) {
+            toggleAllTaxa(cb.checked);
+        }
+
+        function syncToggleAllCheckbox() {
+            const cb = document.getElementById('toggleAllCheckbox');
+            if (!cb) return;
+            const anyUnchecked = Object.keys(taxaData).some(id => !taxaVisibility[id]);
+            const allUnchecked = Object.keys(taxaData).every(id => !taxaVisibility[id]);
+            cb.checked = !allUnchecked;
+            cb.indeterminate = anyUnchecked && !allUnchecked;
         }
         
         function highlightTaxon(taxonId) {
