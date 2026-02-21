@@ -861,6 +861,239 @@
         .leaflet-popup-tip {
             background: var(--forest-dark);
         }
+
+        /* ═══════════════════════════════════════════════════════
+           MOBILE LAYOUT (max-width: 768px)
+           - Map fills full screen as base layer
+           - Left sidebar  → bottom sheet (Controls)
+           - Right sidebar → bottom sheet (Results)
+           - Bottom legend → bottom sheet (Legend)
+           - Tab bar at bottom to switch sheets
+           - FAB to trigger Run Query
+        ═══════════════════════════════════════════════════════ */
+        @media (max-width: 768px) {
+
+            body {
+                height: 100dvh;
+                overflow: hidden;
+            }
+
+            /* ── Grid → full-screen stack ── */
+            .container {
+                display: block;
+                height: 100dvh;
+                position: relative;
+            }
+
+            /* ── Map fills everything ── */
+            .map-container {
+                position: absolute !important;
+                inset: 0 !important;
+                grid-row: unset !important;
+                grid-column: unset !important;
+                z-index: 1;
+            }
+
+            #map {
+                width: 100% !important;
+                height: 100% !important;
+                padding-bottom: 0 !important;
+            }
+
+            /* Leaflet zoom controls clear the FAB */
+            .leaflet-top.leaflet-left {
+                top: 10px;
+            }
+            .leaflet-top.leaflet-right {
+                top: 10px;
+            }
+            /* Layer control clears FAB on right side */
+            .leaflet-control-layers {
+                margin-right: 4px !important;
+            }
+
+            /* ── Tab bar ── */
+            #mobileTabBar {
+                display: flex;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 58px;
+                background: rgba(26, 58, 46, 0.97);
+                border-top: 1px solid rgba(123, 165, 145, 0.25);
+                z-index: 3000;
+                backdrop-filter: blur(8px);
+            }
+
+            .mob-tab {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 3px;
+                cursor: pointer;
+                user-select: none;
+                color: var(--sage);
+                font-size: 0.62em;
+                text-transform: uppercase;
+                letter-spacing: 0.7px;
+                font-weight: 600;
+                transition: color 0.15s;
+                border: none;
+                background: none;
+                font-family: 'Karla', sans-serif;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            .mob-tab .tab-icon {
+                font-size: 18px;
+                line-height: 1;
+            }
+
+            .mob-tab.active {
+                color: var(--gold);
+            }
+
+            /* ── Bottom sheets (shared) ── */
+            .sidebar-left,
+            .sidebar-right,
+            .bottom-legend-panel {
+                position: fixed !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 58px !important;  /* above tab bar */
+                grid-row: unset !important;
+                grid-column: unset !important;
+                width: 100% !important;
+                max-height: 72dvh;
+                z-index: 2000;
+                border-radius: 16px 16px 0 0;
+                box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                padding: 20px 20px 16px !important;
+                transform: translateY(100%);
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                /* hide when translated away */
+                pointer-events: none;
+            }
+
+            .sidebar-left.sheet-visible,
+            .sidebar-right.sheet-visible,
+            .bottom-legend-panel.sheet-visible {
+                transform: translateY(0);
+                pointer-events: auto;
+            }
+
+            /* Pull handle on each sheet */
+            .sidebar-left::before,
+            .sidebar-right::before,
+            .bottom-legend-panel::before {
+                content: '';
+                display: block;
+                width: 40px;
+                height: 4px;
+                background: rgba(123, 165, 145, 0.4);
+                border-radius: 2px;
+                margin: 0 auto 16px;
+            }
+
+            /* Tighten up left sidebar content */
+            .sidebar-left h1 { font-size: 1.5em; margin-bottom: 4px; }
+            .sidebar-left .subtitle { margin-bottom: 16px; }
+            .section { margin-bottom: 18px; }
+            .section-title { margin-bottom: 8px; }
+            .input-group { margin-bottom: 12px; }
+
+            /* Right sidebar */
+            .sidebar-right h1 { font-size: 1.5em; margin-bottom: 4px; }
+            .sidebar-right .subtitle { margin-bottom: 16px; }
+
+            /* Bottom legend: taller since it has the table */
+            .bottom-legend-panel {
+                max-height: 80dvh;
+                padding: 16px 12px 16px !important;
+            }
+
+            /* Hide the ::before on bottom-legend-panel since it has its own title */
+            .bottom-legend-panel::before { margin-bottom: 8px; }
+
+            /* ── FAB: Run Query ── */
+            #mobileFab {
+                display: flex;
+                position: fixed;
+                bottom: 70px;
+                right: 16px;
+                width: 56px;
+                height: 56px;
+                background: var(--rust);
+                border-radius: 50%;
+                align-items: center;
+                justify-content: center;
+                font-size: 22px;
+                z-index: 2500;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+                cursor: pointer;
+                border: none;
+                color: white;
+                transition: transform 0.15s, background 0.15s;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            #mobileFab:active {
+                transform: scale(0.93);
+                background: #a04d2f;
+            }
+
+            /* Hide the desktop Run Query button on mobile */
+            .btn-primary#runBtn {
+                display: none;
+            }
+
+            /* Hide sidebar-left::before gradient line on mobile */
+            .sidebar-left::before {
+                background: none;
+                width: 40px;
+                height: 4px;
+                background: rgba(123, 165, 145, 0.4);
+                border-radius: 2px;
+                top: 10px;
+                left: 50%;
+                transform: translateX(-50%);
+                opacity: 1;
+            }
+
+            /* Larger touch targets for inputs */
+            input[type="text"],
+            input[type="number"],
+            select {
+                padding: 12px !important;
+                font-size: 1em !important;
+            }
+
+            /* Month grid bigger tap targets */
+            .month-checkbox {
+                padding: 8px 6px !important;
+                font-size: 0.85em !important;
+            }
+
+            /* Status/progress inside left sheet */
+            .progress-container,
+            .status {
+                margin-top: 10px;
+            }
+
+            /* Popup sizing */
+            .leaflet-popup-content {
+                font-size: 0.95em;
+            }
+
+            .leaflet-popup-content-wrapper {
+                max-width: 260px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1127,6 +1360,30 @@
             </div>
         </div>
         
+
+        <!-- Mobile Tab Bar -->
+        <div id="mobileTabBar" style="display:none;">
+            <button class="mob-tab active" data-sheet="sidebar-left" onclick="mobileShowSheet('sidebar-left')">
+                <span class="tab-icon">⚙</span>
+                <span>Controls</span>
+            </button>
+            <button class="mob-tab" data-sheet="sidebar-right" onclick="mobileShowSheet('sidebar-right')">
+                <span class="tab-icon">📊</span>
+                <span>Results</span>
+            </button>
+            <button class="mob-tab" data-sheet="bottom-legend-panel" onclick="mobileShowSheet('bottom-legend-panel')">
+                <span class="tab-icon">🗺</span>
+                <span>Legend</span>
+            </button>
+            <button class="mob-tab" data-sheet="none" onclick="mobileHideAll()">
+                <span class="tab-icon">🗙</span>
+                <span>Map</span>
+            </button>
+        </div>
+
+        <!-- Mobile FAB -->
+        <button id="mobileFab" style="display:none;" onclick="runQuery()">🔍</button>
+
         <!-- Bottom Legend Panel -->
         <div class="bottom-legend-panel">
             <div id="legendContainer" style="display: none;">
@@ -3074,5 +3331,73 @@
             }
         }
     </script>
+
+<script>
+// ── Mobile layout init ────────────────────────────────────────────────────────
+(function() {
+    function isMobile() { return window.innerWidth <= 768; }
+
+    const tabBar = document.getElementById('mobileTabBar');
+    const fab    = document.getElementById('mobileFab');
+
+    function initMobile() {
+        if (!isMobile()) return;
+        tabBar.style.display = 'flex';
+        fab.style.display    = 'flex';
+        // Show controls sheet by default
+        mobileShowSheet('sidebar-left');
+    }
+
+    window.mobileShowSheet = function(cls) {
+        const sheets = ['sidebar-left', 'sidebar-right', 'bottom-legend-panel'];
+        sheets.forEach(s => {
+            document.querySelector('.' + s)?.classList.remove('sheet-visible');
+        });
+        // Update active tab
+        document.querySelectorAll('.mob-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.sheet === cls);
+        });
+        if (cls !== 'none') {
+            document.querySelector('.' + cls)?.classList.add('sheet-visible');
+        }
+    };
+
+    window.mobileHideAll = function() {
+        ['sidebar-left', 'sidebar-right', 'bottom-legend-panel'].forEach(s => {
+            document.querySelector('.' + s)?.classList.remove('sheet-visible');
+        });
+        document.querySelectorAll('.mob-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector('.mob-tab[data-sheet="none"]')?.classList.add('active');
+    };
+
+    // After query runs, auto-switch to results sheet on mobile
+    const origRunQuery = window.runQuery;
+    if (origRunQuery) {
+        window.runQuery = function() {
+            origRunQuery.apply(this, arguments);
+            if (isMobile()) {
+                setTimeout(() => mobileShowSheet('sidebar-right'), 500);
+            }
+        };
+    }
+
+    // On resize, show/hide mobile chrome
+    window.addEventListener('resize', () => {
+        if (isMobile()) {
+            tabBar.style.display = 'flex';
+            fab.style.display = 'flex';
+        } else {
+            tabBar.style.display = 'none';
+            fab.style.display = 'none';
+            ['sidebar-left','sidebar-right','bottom-legend-panel'].forEach(s => {
+                document.querySelector('.' + s)?.classList.remove('sheet-visible');
+            });
+        }
+    });
+
+    initMobile();
+})();
+</script>
+
 </body>
 </html>
