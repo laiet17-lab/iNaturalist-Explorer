@@ -626,7 +626,7 @@
             /* ── Bottom sheet ── */
             #panel {
                 width: 100%;
-                height: 44px;           /* collapsed: just the handle */
+                height: 56px;           /* collapsed: generous tap target */
                 flex-shrink: 0;
                 border-left: none;
                 border-top: 1px solid rgba(123, 165, 145, 0.3);
@@ -645,11 +645,11 @@
             #panel::before {
                 content: '';
                 display: block;
-                width: 36px;
-                height: 4px;
-                background: rgba(123, 165, 145, 0.4);
-                border-radius: 2px;
-                margin: 10px auto 0;
+                width: 48px;
+                height: 5px;
+                background: rgba(123, 165, 145, 0.5);
+                border-radius: 3px;
+                margin: 12px auto 0;
                 cursor: pointer;
                 flex-shrink: 0;
             }
@@ -670,10 +670,11 @@
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                padding: 4px 14px 8px;
+                padding: 8px 14px 10px;
                 cursor: pointer;
                 user-select: none;
                 flex-shrink: 0;
+                min-height: 44px;
             }
 
             #sheetTitle {
@@ -955,10 +956,18 @@ const LocateControl = L.Control.extend({
                         radius: pos.coords.accuracy,
                         color: '#e6b17e', fillColor: '#e6b17e', fillOpacity: 0.12, weight: 1
                     }).addTo(map);
-                    locationMarker = L.circleMarker(ll, {
-                        radius: 7, color: '#fff', weight: 2,
-                        fillColor: '#e6b17e', fillOpacity: 1
-                    }).addTo(map);
+                    const tearIcon = L.divIcon({
+                        html: `<svg width="24" height="34" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 0 C5.373 0 0 5.373 0 12 C0 20 12 34 12 34 C12 34 24 20 24 12 C24 5.373 18.627 0 12 0 Z"
+                                fill="#e6b17e" stroke="#fff" stroke-width="1.5"/>
+                            <circle cx="12" cy="12" r="4" fill="#fff" opacity="0.85"/>
+                        </svg>`,
+                        className: '',
+                        iconSize: [24, 34],
+                        iconAnchor: [12, 34],
+                        popupAnchor: [0, -34]
+                    });
+                    locationMarker = L.marker(ll, { icon: tearIcon, zIndexOffset: 2000 }).addTo(map);
                     map.setView(ll, Math.max(map.getZoom(), 13));
                 },
                 err => {
@@ -989,6 +998,7 @@ slider.addEventListener('input', () => {
 let allObservations = [];   // all obs for user+date, sorted by time
 let markers = [];
 let polyline = null;
+let projectedMarker = null;
 
 // ── Fetch all observations for this user+date ────────────────────────────────
 async function fetchObservations() {
@@ -1063,6 +1073,7 @@ function clearMap() {
     markers.forEach(m => map.removeLayer(m));
     markers = [];
     if (polyline) { map.removeLayer(polyline); polyline = null; }
+    if (projectedMarker) { map.removeLayer(projectedMarker); projectedMarker = null; }
 }
 
 // ── Sequence panel ───────────────────────────────────────────────────────────
@@ -1215,6 +1226,69 @@ function plotObservations(obs, targetIdx) {
         }
     });
 
+
+    // ── Projected location for target ────────────────────────────────────────
+    // Find nearest obs before and after target that have valid coords + timestamp
+    const targetObs = obs[targetIdx];
+    const targetMs  = targetObs?.time_observed_at
+        ? new Date(targetObs.time_observed_at).getTime() : null;
+
+    if (targetMs !== null) {
+        let prevObs = null, nextObs = null;
+
+        // Search backwards from targetIdx-1
+        for (let i = targetIdx - 1; i >= 0; i--) {
+            const o = obs[i];
+            const lat = o.geojson?.coordinates?.[1] ?? o.location?.split(',')[0];
+            const lng = o.geojson?.coordinates?.[0] ?? o.location?.split(',')[1];
+            if (lat && lng && o.time_observed_at) { prevObs = { o, lat: parseFloat(lat), lng: parseFloat(lng) }; break; }
+        }
+
+        // Search forwards from targetIdx+1
+        for (let i = targetIdx + 1; i < obs.length; i++) {
+            const o = obs[i];
+            const lat = o.geojson?.coordinates?.[1] ?? o.location?.split(',')[0];
+            const lng = o.geojson?.coordinates?.[0] ?? o.location?.split(',')[1];
+            if (lat && lng && o.time_observed_at) { nextObs = { o, lat: parseFloat(lat), lng: parseFloat(lng) }; break; }
+        }
+
+        if (prevObs && nextObs) {
+            const prevMs = new Date(prevObs.o.time_observed_at).getTime();
+            const nextMs = new Date(nextObs.o.time_observed_at).getTime();
+            const span   = nextMs - prevMs;
+            // t=0 → prevObs position, t=1 → nextObs position
+            const t = span > 0 ? (targetMs - prevMs) / span : 0.5;
+            const projLat = prevObs.lat + t * (nextObs.lat - prevObs.lat);
+            const projLng = prevObs.lng + t * (nextObs.lng - prevObs.lng);
+
+            const projIcon = L.divIcon({
+                html: `<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="16" cy="16" r="14" fill="rgba(26,58,46,0.85)" stroke="#e6b17e" stroke-width="2" stroke-dasharray="4 3"/>
+                    <text x="16" y="21" text-anchor="middle" font-size="16" font-family="sans-serif" fill="#e6b17e">?</text>
+                </svg>`,
+                className: '',
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+                popupAnchor: [0, -18]
+            });
+
+            projectedMarker = L.marker([projLat, projLng], { icon: projIcon, zIndexOffset: 900 });
+
+            const prevTimeStr = new Date(prevObs.o.time_observed_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            const nextTimeStr = new Date(nextObs.o.time_observed_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            const tPct = (t * 100).toFixed(0);
+
+            projectedMarker.bindPopup(`
+                <div class="popup-target-badge">⟡ Projected location</div>
+                <div class="popup-title" style="font-style:normal;">Time-weighted estimate</div>
+                <div class="popup-detail" style="margin-top:6px;"><strong>Coords:</strong> ${projLat.toFixed(5)}, ${projLng.toFixed(5)}</div>
+                <div class="popup-detail"><strong>Interpolated:</strong> ${tPct}% of the way</div>
+                <div class="popup-detail" style="opacity:0.6;font-size:0.78em;">Between ${prevTimeStr} and ${nextTimeStr}</div>
+            `);
+            projectedMarker.addTo(map);
+        }
+    }
+
     // Draw connecting polyline through valid points
     if (validPoints.length > 1) {
         polyline = L.polyline(validPoints, {
@@ -1259,7 +1333,7 @@ if (!TARGET_ID || !USER_LOGIN || !OBS_DATE) {
     panel.addEventListener('click', e => {
         if (!isMobile()) return;
         const rect = panel.getBoundingClientRect();
-        if (e.clientY - rect.top < 24) {
+        if (e.clientY - rect.top < 56) {
             panel.classList.toggle('sheet-open');
         }
     });
